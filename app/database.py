@@ -26,5 +26,7 @@ def get_db():
 
 
 def init_db():
+    from app.models import evaluation, generation, knowledge, project, requirement, system_config, testcase  # noqa: F401
+
     DATA_DIR.mkdir(exist_ok=True)
     Base.metadata.create_all(bind=engine)
