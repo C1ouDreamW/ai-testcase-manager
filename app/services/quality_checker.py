@@ -112,7 +112,7 @@ def detect_duplicates(drafts: list) -> int:
                         issues = json.loads(current.quality_issues or "[]")
                     except json.JSONDecodeError:
                         issues = []
-                    issues.append(f"与用例《{other.title}》疑似重复")
+                    issues.append(f"与用例<{other.title}>疑似重复")
                     current.quality_issues = json.dumps(issues, ensure_ascii=False)
                     if current.quality_status == "pass":
                         current.quality_status = "warning"
