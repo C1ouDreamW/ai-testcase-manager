@@ -8,7 +8,7 @@ from app.skills.shared.prompt_loader import load_prompt
 
 SKILL_DIR = Path(__file__).resolve().parent
 SKILL_NAME = "case_writer"
-PROMPT_PATH = "prompts/write.md"
+PROMPT_PATH = "prompt.md"
 
 QUICK_SUFFIX = (
     "\n\n【本次仅生成冒烟用例】只输出核心主路径用例，每个功能点 2～4 条，"
