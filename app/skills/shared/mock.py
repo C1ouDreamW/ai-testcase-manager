@@ -1,4 +1,16 @@
 def mock_cases(feature: str, count: int, case_types: list[str], skill_name: str, smoke: bool = False) -> list[dict]:
+    """生成模拟测试用例数据，用于 mock 模式下的离线开发。
+
+    Args:
+        feature (str): 功能点名称。
+        count (int): 要生成的用例数量。
+        case_types (list[str]): 用例类型列表，按索引循环分配。
+        skill_name (str): 来源技能名称。
+        smoke (bool, optional): 是否全部标记为冒烟用例。默认为 False。
+
+    Returns:
+        list[dict]: 模拟测试用例列表。
+    """
     cases = []
     for i in range(count):
         case_type = case_types[i % len(case_types)]

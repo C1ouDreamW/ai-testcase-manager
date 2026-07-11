@@ -11,6 +11,17 @@ SKILL_NAME = "api_test"
 
 
 async def run(inputs: dict, context: SkillContext) -> dict:
+    """针对功能点生成接口测试相关用例。
+
+    mock 模式下返回模拟用例。
+
+    Args:
+        inputs (dict): 包含 feature_item、scope、knowledge 的字典。
+        context (SkillContext): 技能执行上下文。
+
+    Returns:
+        dict: 包含 cases（测试用例列表）的结果字典。
+    """
     feature_item = inputs["feature_item"]
     scope = inputs.get("scope")
     knowledge = inputs.get("knowledge")

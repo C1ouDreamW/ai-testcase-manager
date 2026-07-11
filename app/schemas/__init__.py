@@ -305,6 +305,14 @@ class CatalogRename(BaseModel):
 
     @model_validator(mode="after")
     def validate_feature_rename(self):
+        """校验功能点重命名请求：重命名功能点时必须提供 old_feature。
+
+        Returns:
+            CatalogRename: 校验通过后的自身实例。
+
+        Raises:
+            ValueError: 重命名功能点但未提供 old_feature 时抛出。
+        """
         if self.type == "feature" and not self.old_feature:
             raise ValueError("重命名功能点需提供 old_feature")
         return self

@@ -18,6 +18,11 @@ class Base(DeclarativeBase):
 
 
 def get_db():
+    """FastAPI 依赖注入：创建数据库会话并在请求结束后自动关闭。
+
+    Yields:
+        Session: SQLAlchemy 数据库会话对象。
+    """
     db = SessionLocal()
     try:
         yield db
@@ -26,6 +31,7 @@ def get_db():
 
 
 def init_db():
+    """初始化数据库，创建 data 目录和所有模型对应的表结构。"""
     from app.models import evaluation, generation, knowledge, project, requirement, system_config, testcase  # noqa: F401
 
     DATA_DIR.mkdir(exist_ok=True)

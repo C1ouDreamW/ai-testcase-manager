@@ -31,10 +31,22 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
+        """将逗号分隔的 CORS 来源字符串解析为列表。
+
+        Returns:
+            list[str]: 去除空白后的 CORS 来源列表。
+        """
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def use_mock_llm(self) -> bool:
+        """判断是否使用模拟 LLM 模式。
+
+        当 mock 模式开启或未配置 API Key 时返回 True。
+
+        Returns:
+            bool: 是否使用模拟 LLM。
+        """
         return self.llm_mock_mode or not self.llm_api_key
 
 settings = Settings()

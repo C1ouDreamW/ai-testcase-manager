@@ -17,6 +17,17 @@ QUICK_SUFFIX = (
 
 
 async def run(inputs: dict, context: SkillContext) -> dict:
+    """根据功能点生成测试用例，支持 full（完整）和 quick（快速冒烟）两种策略。
+
+    mock 模式下根据策略返回不同数量的模拟用例。
+
+    Args:
+        inputs (dict): 包含 feature_item、strategy、scope、knowledge 的字典。
+        context (SkillContext): 技能执行上下文。
+
+    Returns:
+        dict: 包含 cases（测试用例列表）的结果字典。
+    """
     feature_item = inputs["feature_item"]
     scope = inputs.get("scope")
     knowledge = inputs.get("knowledge")

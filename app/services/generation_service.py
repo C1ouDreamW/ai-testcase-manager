@@ -21,19 +21,25 @@ from app.skills.registry import get_registry
 
 
 def normalize_strategy(strategy: str) -> str:
-    """
-    将策略名称标准化为注册表中定义的规范形式。
-    :param strategy: 策略名称
-    :return: 标准化后的策略名称
+    """将策略名称标准化为注册表中定义的规范形式。
+
+    Args:
+        strategy (str): 策略名称。
+
+    Returns:
+        str: 标准化后的策略名称。
     """
     return get_registry().normalize_strategy(strategy)
 
 
 def parse_strategy_config(task: GenerationTask) -> dict:
-    """
-    解析 GenerationTask.strategy_config 字段，返回标准化的策略配置字典。
-    :param task: GenerationTask 对象
-    :return: 包含 'strategy', 'specialist_skills', 'use_knowledge' 的字典
+    """解析生成任务的策略配置字段，返回标准化的策略配置字典。
+
+    Args:
+        task (GenerationTask): 生成任务对象。
+
+    Returns:
+        dict: 包含 strategy、specialist_skills、use_knowledge 的字典。
     """
     registry = get_registry()
     if not task.strategy_config:
@@ -103,6 +109,17 @@ def _skill_context(task: GenerationTask, strategy: str) -> SkillContext:
 
 
 async def structure_requirements(db: Session, document: RequirementDocument) -> list[RequirementItem]:
+    """解析需求文档内容，提取功能点并持久化到数据库。
+
+    调用需求解析技能，删除旧的解析结果，创建新的 RequirementItem 记录。
+
+    Args:
+        db (Session): 数据库会话。
+        document (RequirementDocument): 需求文档对象。
+
+    Returns:
+        list[RequirementItem]: 新创建的功能点列表。
+    """
     items_data = await parse_requirements(document.raw_content)
     document.status = "structured"
     db.query(RequirementItem).filter(RequirementItem.document_id == document.id).delete()
@@ -130,6 +147,15 @@ async def structure_requirements(db: Session, document: RequirementDocument) -> 
 
 
 def confirm_requirements(db: Session, document_id: int, item_ids: list[int] | None = None):
+    """确认或取消确认指定需求文档的功能点。
+
+    如果未指定 item_ids，则确认全部功能点；否则仅确认指定的功能点并取消其余。
+
+    Args:
+        db (Session): 数据库会话。
+        document_id (int): 需求文档 ID。
+        item_ids (list[int] | None, optional): 要确认的功能点 ID 列表。默认为 None。
+    """
     if item_ids is not None:
         db.query(RequirementItem).filter(
             RequirementItem.document_id == document_id,
@@ -150,7 +176,14 @@ def confirm_requirements(db: Session, document_id: int, item_ids: list[int] | No
 
 
 def _parse_scope(raw: str) -> dict | None:
-    """把 RequirementDocument.test_scope 的 JSON 字符串解析为 dict，无效返回 None。"""
+    """将 RequirementDocument.test_scope 的 JSON 字符串解析为标准化字典。
+
+    Args:
+        raw (str): test_scope 字段的原始 JSON 字符串。
+
+    Returns:
+        dict | None: 包含 in_scope、out_scope、risks 的字典，无效时返回 None。
+    """
     if not raw:
         return None
     try:
@@ -170,6 +203,14 @@ def _parse_scope(raw: str) -> dict | None:
 
 
 def _item_feature_data(item: RequirementItem) -> dict:
+    """将 RequirementItem 对象转换为功能点字典，用于传给技能。
+
+    Args:
+        item (RequirementItem): 功能点对象。
+
+    Returns:
+        dict: 包含 module、feature、description、acceptance_criteria、constraints、priority 的字典。
+    """
     return {
         "module": item.module,
         "feature": item.feature,
@@ -181,6 +222,14 @@ def _item_feature_data(item: RequirementItem) -> dict:
 
 
 def _draft_for_judge(draft: GeneratedCaseDraft) -> dict:
+    """将 GeneratedCaseDraft 对象转换为 AI Judge 所需的字典格式。
+
+    Args:
+        draft (GeneratedCaseDraft): 用例草稿对象。
+
+    Returns:
+        dict: 包含 title、precondition、steps、expected_result 的字典。
+    """
     return {
         "title": draft.title,
         "precondition": draft.precondition,
@@ -190,9 +239,14 @@ def _draft_for_judge(draft: GeneratedCaseDraft) -> dict:
 
 
 async def run_judge_for_task(db: Session, task: GenerationTask) -> None:
-    """对任务下全部草稿按功能点批量运行 AI Judge，评分写回草稿。
+    """对生成任务下的全部草稿按功能点分组运行 AI Judge 评分。
 
-    单个功能点评分失败不中断整体流程（对应草稿保持未评状态）。
+    评分结果直接写回草稿对象的 judge_score 和 judge_issues 字段。
+    单个功能点评分失败不中断整体流程，对应草稿保持未评状态。
+
+    Args:
+        db (Session): 数据库会话。
+        task (GenerationTask): 生成任务对象。
     """
     registry = get_registry()
     context = _skill_context(task, "full")
@@ -255,6 +309,18 @@ async def run_judge_for_task(db: Session, task: GenerationTask) -> None:
 
 
 async def run_generation(db: Session, task: GenerationTask):
+    """执行测试用例生成的完整流程。
+
+    流程包括：确认功能点 → 知识库检索 → 逐功能点调用核心技能和专项技能生成用例 →
+    格式化 + 质检 → 重复检测 → AI Judge 评分 → 生成质检报告。
+
+    Args:
+        db (Session): 数据库会话。
+        task (GenerationTask): 生成任务对象。
+
+    Raises:
+        Exception: 生成过程中发生错误时重新抛出，任务状态会被标记为 failed。
+    """
     registry = get_registry()
     task.status = "generating"
     task.progress = 0
@@ -394,6 +460,18 @@ async def run_generation(db: Session, task: GenerationTask):
 
 
 def adopt_drafts(db: Session, task_id: int, draft_ids: list[int]) -> list[TestCase]:
+    """将指定的用例草稿采纳为正式测试用例。
+
+    为每个草稿创建对应的 TestCase 记录，并将草稿的 review_status 标记为 adopted。
+
+    Args:
+        db (Session): 数据库会话。
+        task_id (int): 生成任务 ID。
+        draft_ids (list[int]): 要采纳的草稿 ID 列表。
+
+    Returns:
+        list[TestCase]: 新创建的 TestCase 对象列表。
+    """
     task = db.query(GenerationTask).get(task_id)
     adopted = []
 
@@ -429,6 +507,14 @@ def adopt_drafts(db: Session, task_id: int, draft_ids: list[int]) -> list[TestCa
 
 
 def reject_drafts(db: Session, task_id: int, draft_ids: list[int], reject_reason: str = ""):
+    """驳回指定的用例草稿，标记为已驳回并记录原因。
+
+    Args:
+        db (Session): 数据库会话。
+        task_id (int): 生成任务 ID。
+        draft_ids (list[int]): 要驳回的草稿 ID 列表。
+        reject_reason (str, optional): 驳回原因，最多 200 字符。默认为空字符串。
+    """
     db.query(GeneratedCaseDraft).filter(
         GeneratedCaseDraft.task_id == task_id,
         GeneratedCaseDraft.id.in_(draft_ids),

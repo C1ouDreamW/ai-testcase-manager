@@ -26,6 +26,14 @@ MOCK_SCOPE = {
 
 
 def _normalize(data) -> dict:
+    """将测试范围原始数据标准化为包含 in_scope、out_scope、risks 的字典。
+
+    Args:
+        data: JSON 解析后的原始数据。
+
+    Returns:
+        dict: 标准化后的测试范围字典。
+    """
     if not isinstance(data, dict):
         data = {}
     return {
@@ -36,6 +44,17 @@ def _normalize(data) -> dict:
 
 
 async def run(inputs: dict, context: SkillContext) -> dict:
+    """根据需求文档内容提出测试范围与风险建议。
+
+    mock 模式下返回预置的模拟范围数据。
+
+    Args:
+        inputs (dict): 包含 raw_content（需求文档原始内容）的字典。
+        context (SkillContext): 技能执行上下文。
+
+    Returns:
+        dict: 包含 scope（测试范围建议）的结果字典。
+    """
     raw_content = inputs["raw_content"]
     if context.use_mock:
         return {"scope": MOCK_SCOPE}

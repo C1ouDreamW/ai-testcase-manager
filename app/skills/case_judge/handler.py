@@ -12,6 +12,16 @@ DIMENSIONS = ("relevance", "executability", "verifiability")
 
 
 def _clamp(value, lo=1, hi=5) -> int:
+    """将分值限制在 [lo, hi] 范围内，非数值默认为 3。
+
+    Args:
+        value: 原始分值。
+        lo (int, optional): 下限。默认为 1。
+        hi (int, optional): 上限。默认为 5。
+
+    Returns:
+        int: 限制后的整型分值。
+    """
     try:
         return max(lo, min(hi, int(value)))
     except (TypeError, ValueError):
@@ -19,6 +29,14 @@ def _clamp(value, lo=1, hi=5) -> int:
 
 
 def _normalize_judgement(raw: dict) -> dict:
+    """将原始评分数据标准化，计算综合分（三维度平均值）。
+
+    Args:
+        raw (dict): 原始评分字典，包含 relevance、executability、verifiability 等字段。
+
+    Returns:
+        dict: 标准化后的评分字典，包含 overall、hallucination 等字段。
+    """
     scores = {dim: _clamp(raw.get(dim)) for dim in DIMENSIONS}
     overall = round(sum(scores.values()) / len(scores), 1)
     return {
@@ -32,6 +50,16 @@ def _normalize_judgement(raw: dict) -> dict:
 
 
 def _mock_judgements(cases: list) -> list[dict]:
+    """生成模拟的 AI 评分结果，用于 mock 模式。
+
+    每条用例返回基于索引的模拟分值，不标记幻觉。
+
+    Args:
+        cases (list): 用例列表。
+
+    Returns:
+        list[dict]: 模拟评分结果列表。
+    """
     result = []
     for i in range(len(cases)):
         result.append(_normalize_judgement({
@@ -45,6 +73,15 @@ def _mock_judgements(cases: list) -> list[dict]:
 
 
 def _cases_to_prompt(feature_item: dict, cases: list[dict]) -> str:
+    """将功能点和待评分用例列表组装为传给 LLM 的评分 prompt。
+
+    Args:
+        feature_item (dict): 功能点字典。
+        cases (list[dict]): 待评分的用例列表。
+
+    Returns:
+        str: 组装好的评分 prompt 字符串。
+    """
     lines = [
         "功能点：",
         json.dumps(feature_item, ensure_ascii=False, indent=2),
@@ -69,6 +106,18 @@ def _cases_to_prompt(feature_item: dict, cases: list[dict]) -> str:
 
 
 async def run(inputs: dict, context: SkillContext) -> dict:
+    """对功能点下的一组测试用例进行 AI 评分。
+
+    从相关性、可执行性、可验证性三个维度评分（1~5），检测幻觉，使用评测专用模型避免自评偏置。
+    mock 模式下返回模拟评分。
+
+    Args:
+        inputs (dict): 包含 feature_item（功能点）和 cases（用例列表）的字典。
+        context (SkillContext): 技能执行上下文。
+
+    Returns:
+        dict: 包含 judgements（评分结果列表）的结果字典。
+    """
     feature_item = inputs["feature_item"]
     cases = inputs["cases"]
     if not cases:

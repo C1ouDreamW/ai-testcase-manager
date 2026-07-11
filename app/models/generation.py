@@ -36,7 +36,14 @@ class GenerationTask(Base):
 
     @property
     def review_stats(self) -> dict:
-        """从 drafts 实时汇总评审信号：采纳率 / 编辑率 / 驳回率。"""
+        """从草稿实时汇总评审统计信息。
+
+        计算采纳率、编辑率和驳回率等指标。
+
+        Returns:
+            dict: 包含 total、adopted、rejected、edited_adopted、pending、reviewed、
+                adoption_rate、edit_rate、rejection_rate 的统计字典。
+        """
         drafts = self.drafts or []
         total = len(drafts)
         adopted = sum(1 for d in drafts if d.review_status == "adopted")
