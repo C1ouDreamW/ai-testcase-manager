@@ -29,7 +29,6 @@ from app.services.generation_service import (
 from app.services.quality_checker import judge_summary
 from app.services.testcase_export_service import export_testcases
 from app.models.generation import GeneratedCaseDraft
-from app.models.testcase import TestCase
 
 router = APIRouter(prefix="/projects/{project_id}/generations", tags=["generations"])
 
@@ -63,7 +62,7 @@ def list_tasks(project_id: int, db: Session = Depends(get_db)):
     return (
         db.query(GenerationTask)
         .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
-        .filter(GenerationTask.project_id == project_id, GenerationTask.is_eval == False)
+        .filter(GenerationTask.project_id == project_id, ~GenerationTask.is_eval)
         .order_by(GenerationTask.created_at.desc())
         .all()
     )
@@ -132,7 +131,7 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
     tasks = (
         db.query(GenerationTask)
         .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
-        .filter(GenerationTask.project_id == project_id, GenerationTask.is_eval == False)
+        .filter(GenerationTask.project_id == project_id, ~GenerationTask.is_eval)
         .order_by(GenerationTask.created_at.desc())
         .all()
     )

@@ -38,7 +38,7 @@ def _eval_project(db: Session) -> Project:
     Returns:
         Project: 评测专用项目对象。
     """
-    project = db.query(Project).filter(Project.is_eval == True).first()
+    project = db.query(Project).filter(Project.is_eval).first()
     if not project:
         project = Project(name=EVAL_PROJECT_NAME, description="评测专用隐藏项目", is_eval=True)
         db.add(project)
@@ -355,7 +355,7 @@ def get_eval_task(task_id: int, db: Session = Depends(get_db)):
     task = (
         db.query(GenerationTask)
         .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
-        .filter(GenerationTask.id == task_id, GenerationTask.is_eval == True)
+        .filter(GenerationTask.id == task_id, GenerationTask.is_eval)
         .first()
     )
     if not task:

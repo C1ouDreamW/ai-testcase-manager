@@ -74,7 +74,7 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
     docs = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(RequirementDocument.project_id == project_id, RequirementDocument.is_eval == False)
+        .filter(RequirementDocument.project_id == project_id, ~RequirementDocument.is_eval)
         .order_by(RequirementDocument.created_at.desc())
         .all()
     )

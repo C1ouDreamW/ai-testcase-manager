@@ -4,7 +4,7 @@ from typing import Any
 
 import yaml
 
-from app.skills.base import SkillContext, SkillMeta, SkillRunFn, SkillUIConfig
+from app.skills.base import SkillMeta, SkillRunFn, SkillUIConfig
 
 SKILLS_ROOT = Path(__file__).resolve().parent
 

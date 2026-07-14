@@ -331,7 +331,7 @@ async def run_generation(db: Session, task: GenerationTask):
     try:
         items = (
             db.query(RequirementItem)
-            .filter(RequirementItem.document_id == task.document_id, RequirementItem.confirmed == True)
+            .filter(RequirementItem.document_id == task.document_id, RequirementItem.confirmed)
             .order_by(RequirementItem.sort_order)
             .all()
         )
