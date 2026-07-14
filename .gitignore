@@ -2,12 +2,15 @@
 __pycache__/
 *.py[cod]
 venv/
+.venv/
 .env
 *.db
 
 # Node
 node_modules/
 dist/
+.env.local
+*.local
 
 # IDE
 .idea/
@@ -16,6 +19,10 @@ dist/
 
 # OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
 
 # Uploads
 uploads/
