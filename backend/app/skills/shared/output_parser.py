@@ -55,7 +55,9 @@ def format_scope_hint(scope: dict | None) -> str:
     """
     if not isinstance(scope, dict):
         return ""
-    out_scope = [str(s).strip() for s in (scope.get("out_scope") or []) if str(s).strip()]
+    out_scope = [
+        str(s).strip() for s in (scope.get("out_scope") or []) if str(s).strip()
+    ]
     risks = [str(s).strip() for s in (scope.get("risks") or []) if str(s).strip()]
     if not out_scope and not risks:
         return ""

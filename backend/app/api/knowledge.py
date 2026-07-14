@@ -11,8 +11,16 @@ from app.schemas import (
     KnowledgeSearchHit,
     KnowledgeSearchRequest,
 )
-from app.services.document_parser import DocumentParseError, parse_upload, title_from_filename
-from app.services.knowledge_service import delete_document_vectors, ingest_document, retrieve
+from app.services.document_parser import (
+    DocumentParseError,
+    parse_upload,
+    title_from_filename,
+)
+from app.services.knowledge_service import (
+    delete_document_vectors,
+    ingest_document,
+    retrieve,
+)
 
 router = APIRouter(prefix="/projects/{project_id}/knowledge", tags=["knowledge"])
 
@@ -33,7 +41,9 @@ def _get_doc(db: Session, project_id: int, doc_id: int) -> KnowledgeDocument:
     """
     doc = (
         db.query(KnowledgeDocument)
-        .filter(KnowledgeDocument.id == doc_id, KnowledgeDocument.project_id == project_id)
+        .filter(
+            KnowledgeDocument.id == doc_id, KnowledgeDocument.project_id == project_id
+        )
         .first()
     )
     if not doc:
@@ -61,7 +71,9 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=KnowledgeDocumentOut, status_code=201)
-async def create_document(project_id: int, data: KnowledgeDocumentCreate, db: Session = Depends(get_db)):
+async def create_document(
+    project_id: int, data: KnowledgeDocumentCreate, db: Session = Depends(get_db)
+):
     """创建文本形式的知识库文档并自动入库（分块 + 向量化）。
 
     Args:
@@ -190,7 +202,9 @@ def delete_document(project_id: int, doc_id: int, db: Session = Depends(get_db))
 
 
 @router.post("/search", response_model=list[KnowledgeSearchHit])
-async def search_knowledge(project_id: int, data: KnowledgeSearchRequest, db: Session = Depends(get_db)):
+async def search_knowledge(
+    project_id: int, data: KnowledgeSearchRequest, db: Session = Depends(get_db)
+):
     """在项目知识库中按查询文本检索相关分块。
 
     Args:

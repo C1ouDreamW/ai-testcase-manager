@@ -21,7 +21,12 @@ def get_home_overview(db: Session) -> dict:
         dict: 包含 total_projects、total_testcases、total_generations、projects 和
             latest_active_project_id 的概览字典。
     """
-    projects = db.query(Project).filter(~Project.is_eval).order_by(Project.updated_at.desc()).all()
+    projects = (
+        db.query(Project)
+        .filter(~Project.is_eval)
+        .order_by(Project.updated_at.desc())
+        .all()
+    )
 
     testcase_counts = dict(
         db.query(TestCase.project_id, func.count(TestCase.id))

@@ -64,6 +64,7 @@ MEDIA_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # ---------------------------------------------------------------- row builder
 
+
 def _steps_to_text(raw: Any) -> str:
     """将 list 或 JSON 字符串或纯文本统一格式化为带编号的多行步骤文本。
 
@@ -105,6 +106,7 @@ def build_export_row(case: Any, index: int) -> dict:
     Returns:
         dict: 包含 no、module、feature、title、priority、steps_text 等字段的导出行。
     """
+
     def _get(key: str, default: Any = "") -> Any:
         if isinstance(case, dict):
             return case.get(key, default)
@@ -145,6 +147,7 @@ def _columns(include_review: bool) -> list[tuple[str, str]]:
 
 # ---------------------------------------------------------------- Markdown (大纲式)
 
+
 def _strip_step_number(step: str) -> str:
     """去掉步骤前的编号前缀（如"1. xxx"），便于用 Markdown 列表重新展示。
 
@@ -161,7 +164,9 @@ def _strip_step_number(step: str) -> str:
     return step
 
 
-def _group_rows(rows: list[dict]) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, list[dict]]]]:
+def _group_rows(
+    rows: list[dict],
+) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, list[dict]]]]:
     """按模块和功能点二级分组，保留首次出现的顺序。
 
     Args:
@@ -199,7 +204,9 @@ def _split_text_lines(text: str) -> list[str]:
     return [line.strip() for line in (text or "").splitlines() if line.strip()]
 
 
-def export_testcases_md(title: str, rows: list[dict], include_review: bool = False) -> str:
+def export_testcases_md(
+    title: str, rows: list[dict], include_review: bool = False
+) -> str:
     """大纲式 Markdown 导出：模块 → 功能点 → 用例 → 前置/步骤/预期。
 
     用例标题前用 `【冒烟】【类型】【优先级】` 标签标注，前置条件、操作步骤、
@@ -260,6 +267,7 @@ def export_testcases_md(title: str, rows: list[dict], include_review: bool = Fal
 
 # ---------------------------------------------------------------- Excel
 
+
 def export_testcases_xlsx(title: str, rows: list[dict], include_review: bool) -> bytes:
     """将规范化后的测试用例行导出为 .xlsx 格式的字节数据。
 
@@ -304,6 +312,7 @@ def export_testcases_xlsx(title: str, rows: list[dict], include_review: bool) ->
 
 
 # ---------------------------------------------------------------- dispatch
+
 
 def export_testcases(
     title: str,

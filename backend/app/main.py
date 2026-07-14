@@ -4,7 +4,16 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import evaluations, generations, knowledge, projects, requirements, settings as settings_api, skills, testcases
+from app.api import (
+    evaluations,
+    generations,
+    knowledge,
+    projects,
+    requirements,
+    settings as settings_api,
+    skills,
+    testcases,
+)
 from app.config import settings
 from app.database import init_db
 from app.services.llm import LLMCallError
@@ -22,6 +31,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
 
 @app.exception_handler(LLMCallError)
 async def llm_error_handler(request: Request, exc: LLMCallError):

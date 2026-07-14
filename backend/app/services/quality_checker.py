@@ -108,7 +108,7 @@ def _trigrams(text: str) -> set[str]:
     text = "".join(text.split())
     if len(text) < 3:
         return {text} if text else set()
-    return {text[i:i + 3] for i in range(len(text) - 2)}
+    return {text[i : i + 3] for i in range(len(text) - 2)}
 
 
 def _similarity(a: str, b: str) -> float:
@@ -153,7 +153,10 @@ def detect_duplicates(drafts: list) -> int:
             text_i = f"{current.title} {current.steps}"
             for j in range(i):
                 other = group[j]
-                if _similarity(text_i, f"{other.title} {other.steps}") >= DUPLICATE_THRESHOLD:
+                if (
+                    _similarity(text_i, f"{other.title} {other.steps}")
+                    >= DUPLICATE_THRESHOLD
+                ):
                     duplicate_count += 1
                     try:
                         issues = json.loads(current.quality_issues or "[]")
@@ -228,7 +231,9 @@ def build_quality_report(
     if coverage < 80:
         suggestions.append("覆盖率偏低，建议补充异常和边界场景")
     if hallucination_count > 0:
-        suggestions.append(f"AI 评分标记了 {hallucination_count} 条疑似幻觉用例（编造了需求中没有的规则），请评审时重点核对")
+        suggestions.append(
+            f"AI 评分标记了 {hallucination_count} 条疑似幻觉用例（编造了需求中没有的规则），请评审时重点核对"
+        )
     if duplicate_count > 0:
         suggestions.append(f"检测到 {duplicate_count} 条疑似重复用例，建议去重后采纳")
 
@@ -239,7 +244,9 @@ def build_quality_report(
         "fail_count": fail_count,
         "coverage_rate": round(coverage, 1),
         "uncovered_features": json.dumps(uncovered, ensure_ascii=False),
-        "suggestions": "\n".join(suggestions) if suggestions else "质量良好，可进行人工评审",
+        "suggestions": "\n".join(suggestions)
+        if suggestions
+        else "质量良好，可进行人工评审",
         "avg_judge_score": avg_judge_score,
         "hallucination_count": hallucination_count,
         "duplicate_count": duplicate_count,

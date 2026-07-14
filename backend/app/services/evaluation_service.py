@@ -19,7 +19,11 @@ from app.database import SessionLocal
 from app.models.evaluation import EvalResult, EvalRun, EvalSample
 from app.models.generation import GenerationTask
 from app.models.requirement import RequirementDocument
-from app.services.generation_service import confirm_requirements, run_generation, structure_requirements
+from app.services.generation_service import (
+    confirm_requirements,
+    run_generation,
+    structure_requirements,
+)
 from app.services.llm import chat_completion, parse_json_response
 
 USABLE_SCORE_THRESHOLD = 4.0
@@ -47,7 +51,9 @@ def _parse_checkpoints(sample: EvalSample) -> list[dict]:
         if isinstance(cp, str):
             result.append({"text": cp, "keywords": []})
         elif isinstance(cp, dict) and (cp.get("text") or "").strip():
-            keywords = [str(k).strip() for k in (cp.get("keywords") or []) if str(k).strip()]
+            keywords = [
+                str(k).strip() for k in (cp.get("keywords") or []) if str(k).strip()
+            ]
             result.append({"text": str(cp["text"]).strip(), "keywords": keywords})
     return result
 
@@ -70,7 +76,9 @@ def _keyword_coverage(checkpoints: list[dict], corpus: str) -> set[int]:
     return covered
 
 
-async def _compute_recall(checkpoints: list[dict], drafts: list) -> tuple[float | None, list[str]]:
+async def _compute_recall(
+    checkpoints: list[dict], drafts: list
+) -> tuple[float | None, list[str]]:
     """计算生成用例对标准测试点的召回率。
 
     mock 模式使用关键词匹配，真实模式调用 LLM 批量判定每个测试点是否被覆盖。
@@ -92,17 +100,30 @@ async def _compute_recall(checkpoints: list[dict], drafts: list) -> tuple[float 
         cp_lines = [f"{i}. {cp['text']}" for i, cp in enumerate(checkpoints)]
         case_lines = [
             json.dumps(
-                {"title": d.title, "steps": d.steps, "expected_result": d.expected_result},
+                {
+                    "title": d.title,
+                    "steps": d.steps,
+                    "expected_result": d.expected_result,
+                },
                 ensure_ascii=False,
             )
             for d in drafts
         ]
-        user_prompt = "标准测试点：\n" + "\n".join(cp_lines) + "\n\n生成用例：\n" + "\n".join(case_lines)
+        user_prompt = (
+            "标准测试点：\n"
+            + "\n".join(cp_lines)
+            + "\n\n生成用例：\n"
+            + "\n".join(case_lines)
+        )
         try:
-            text = await chat_completion(COVERAGE_PROMPT, user_prompt, use_eval_model=True)
+            text = await chat_completion(
+                COVERAGE_PROMPT, user_prompt, use_eval_model=True
+            )
             data = parse_json_response(text)
             indexes = data.get("covered_indexes", []) if isinstance(data, dict) else []
-            covered = {i for i in indexes if isinstance(i, int) and 0 <= i < len(checkpoints)}
+            covered = {
+                i for i in indexes if isinstance(i, int) and 0 <= i < len(checkpoints)
+            }
         except Exception:
             covered = _keyword_coverage(checkpoints, corpus)
 
@@ -147,8 +168,12 @@ async def _watch_task_progress(
 
 
 async def _eval_one_sample(
-    db: Session, run: EvalRun, sample: EvalSample, strategy: str,
-    base_pct: float = 0.0, slice_pct: float = 100.0,
+    db: Session,
+    run: EvalRun,
+    sample: EvalSample,
+    strategy: str,
+    base_pct: float = 0.0,
+    slice_pct: float = 100.0,
 ) -> dict:
     """对单个评测样本执行完整生成链路并计算各项指标。
 
@@ -198,7 +223,9 @@ async def _eval_one_sample(
     db.refresh(task)
 
     stop = asyncio.Event()
-    watcher = asyncio.create_task(_watch_task_progress(run.id, task.id, base_pct, slice_pct, stop))
+    watcher = asyncio.create_task(
+        _watch_task_progress(run.id, task.id, base_pct, slice_pct, stop)
+    )
     try:
         await run_generation(db, task)
     except Exception:
@@ -237,7 +264,11 @@ async def _eval_one_sample(
         "avg_judge_score": report.avg_judge_score if report else None,
         "hallucination_count": report.hallucination_count if report else 0,
         "duplicate_count": report.duplicate_count if report else 0,
-        "duplicate_rate": round((report.duplicate_count if report else 0) / total * 100, 1) if total else 0.0,
+        "duplicate_rate": round(
+            (report.duplicate_count if report else 0) / total * 100, 1
+        )
+        if total
+        else 0.0,
         "tokens": task.tokens_used or 0,
         "duration_sec": round(time.monotonic() - started, 1),
     }
@@ -258,7 +289,9 @@ def _aggregate(sample_metrics: list[dict]) -> dict:
     usable_cases = sum(m["usable_cases"] for m in sample_metrics)
     duplicate_count = sum(m["duplicate_count"] for m in sample_metrics)
     recalls = [m["recall"] for m in sample_metrics if m["recall"] is not None]
-    judge_scores = [m["avg_judge_score"] for m in sample_metrics if m["avg_judge_score"] is not None]
+    judge_scores = [
+        m["avg_judge_score"] for m in sample_metrics if m["avg_judge_score"] is not None
+    ]
 
     def rate(part, whole):
         return round(part / whole * 100, 1) if whole else 0.0
@@ -271,7 +304,9 @@ def _aggregate(sample_metrics: list[dict]) -> dict:
         "recall": round(sum(recalls) / len(recalls), 1) if recalls else None,
         "duplicate_rate": rate(duplicate_count, total_cases),
         "hallucination_count": sum(m["hallucination_count"] for m in sample_metrics),
-        "avg_judge_score": round(sum(judge_scores) / len(judge_scores), 2) if judge_scores else None,
+        "avg_judge_score": round(sum(judge_scores) / len(judge_scores), 2)
+        if judge_scores
+        else None,
         "total_tokens": sum(m["tokens"] for m in sample_metrics),
         "total_duration_sec": round(sum(m["duration_sec"] for m in sample_metrics), 1),
     }
@@ -315,8 +350,12 @@ async def run_evaluation(db: Session, run_id: int) -> None:
             db.commit()
 
             metrics = await _eval_one_sample(
-                db, run, result.sample, strategy,
-                base_pct=idx / total * 100, slice_pct=100 / total,
+                db,
+                run,
+                result.sample,
+                strategy,
+                base_pct=idx / total * 100,
+                slice_pct=100 / total,
             )
             result.task_id = metrics["task_id"]
             result.status = "completed" if metrics["success"] else "failed"

@@ -37,13 +37,18 @@ async def run(inputs: dict, context: SkillContext) -> dict:
     if context.use_mock:
         if quick:
             cases = mock_cases(
-                feature_item["feature"], 3,
-                ["functional", "functional", "exception"], SKILL_NAME, smoke=True,
+                feature_item["feature"],
+                3,
+                ["functional", "functional", "exception"],
+                SKILL_NAME,
+                smoke=True,
             )
         else:
             cases = mock_cases(
-                feature_item["feature"], 6,
-                ["functional", "boundary", "exception"], SKILL_NAME,
+                feature_item["feature"],
+                6,
+                ["functional", "boundary", "exception"],
+                SKILL_NAME,
             )
         return {"cases": cases}
 

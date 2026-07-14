@@ -159,7 +159,9 @@ class SkillRegistry:
                 result.append(resolved)
         return result
 
-    async def run(self, name: str, inputs: dict[str, Any], context: SkillContext) -> dict[str, Any]:
+    async def run(
+        self, name: str, inputs: dict[str, Any], context: SkillContext
+    ) -> dict[str, Any]:
         """根据名称调度技能，校验参数后执行 handler 的 run 函数。
 
         Args:

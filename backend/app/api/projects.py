@@ -33,7 +33,12 @@ def list_projects(db: Session = Depends(get_db)):
     Returns:
         list[ProjectOut]: 项目列表。
     """
-    return db.query(Project).filter(~Project.is_eval).order_by(Project.updated_at.desc()).all()
+    return (
+        db.query(Project)
+        .filter(~Project.is_eval)
+        .order_by(Project.updated_at.desc())
+        .all()
+    )
 
 
 @router.post("", response_model=ProjectOut, status_code=201)

@@ -50,7 +50,11 @@ def _embedding_configured() -> bool:
     Returns:
         bool: 配置完整返回 True。
     """
-    return bool(settings.embedding_base_url and settings.embedding_api_key and settings.embedding_model)
+    return bool(
+        settings.embedding_base_url
+        and settings.embedding_api_key
+        and settings.embedding_model
+    )
 
 
 def _use_pseudo_embedding() -> bool:
@@ -78,7 +82,7 @@ def _pseudo_embed(texts: list[str]) -> list[list[float]]:
     for text in texts:
         vec = [0.0] * dim
         for i in range(len(text) - 2):
-            bucket = int(hashlib.md5(text[i:i + 3].encode()).hexdigest(), 16) % dim
+            bucket = int(hashlib.md5(text[i : i + 3].encode()).hexdigest(), 16) % dim
             vec[bucket] += 1.0
         norm = sum(v * v for v in vec) ** 0.5 or 1.0
         result.append([v / norm for v in vec])
@@ -100,7 +104,7 @@ async def _embed(texts: list[str]) -> list[list[float]]:
     vectors: list[list[float]] = []
     batch_size = 16
     for i in range(0, len(texts), batch_size):
-        vectors.extend(await embed_texts(texts[i:i + batch_size]))
+        vectors.extend(await embed_texts(texts[i : i + batch_size]))
     return vectors
 
 
@@ -124,7 +128,9 @@ def _collection(project_id: int):
         chromadb.Collection: ChromaDB 集合对象。
     """
     name = f"p{project_id}_{_model_key()}"
-    return _get_client().get_or_create_collection(name=name, metadata={"hnsw:space": "cosine"})
+    return _get_client().get_or_create_collection(
+        name=name, metadata={"hnsw:space": "cosine"}
+    )
 
 
 # ---------- 分块 ----------
@@ -201,6 +207,7 @@ def chunk_markdown(text: str) -> list[dict]:
 
 # ---------- 入库 / 删除 ----------
 
+
 async def ingest_document(db: Session, doc: KnowledgeDocument) -> None:
     """分块、向量化并写入 ChromaDB 与 SQLite，失败时置为 failed 并记录原因。
 
@@ -241,12 +248,14 @@ async def ingest_document(db: Session, doc: KnowledgeDocument) -> None:
         )
 
         for i, c in enumerate(chunks):
-            db.add(KnowledgeChunk(
-                document_id=doc.id,
-                content=c["content"],
-                heading=c["heading"],
-                chroma_id=ids[i],
-            ))
+            db.add(
+                KnowledgeChunk(
+                    document_id=doc.id,
+                    content=c["content"],
+                    heading=c["heading"],
+                    chroma_id=ids[i],
+                )
+            )
         doc.status = "ready"
         doc.chunk_count = len(chunks)
         doc.error_message = ""
@@ -276,6 +285,7 @@ def delete_document_vectors(doc: KnowledgeDocument) -> None:
 
 # ---------- 检索 ----------
 
+
 async def retrieve(
     db: Session,
     project_id: int,
@@ -299,7 +309,10 @@ async def retrieve(
     """
     ready_count = (
         db.query(KnowledgeDocument)
-        .filter(KnowledgeDocument.project_id == project_id, KnowledgeDocument.status == "ready")
+        .filter(
+            KnowledgeDocument.project_id == project_id,
+            KnowledgeDocument.status == "ready",
+        )
         .count()
     )
     if not ready_count:
@@ -323,13 +336,15 @@ async def retrieve(
         score = 1.0 - distance  # cosine distance → similarity
         if score < threshold:
             continue
-        hits.append({
-            "content": content,
-            "title": (meta or {}).get("title", ""),
-            "heading": (meta or {}).get("heading", ""),
-            "source_type": (meta or {}).get("source_type", "doc"),
-            "score": round(score, 3),
-        })
+        hits.append(
+            {
+                "content": content,
+                "title": (meta or {}).get("title", ""),
+                "heading": (meta or {}).get("heading", ""),
+                "source_type": (meta or {}).get("source_type", "doc"),
+                "score": round(score, 3),
+            }
+        )
     return hits
 
 
@@ -345,7 +360,10 @@ def has_ready_knowledge(db: Session, project_id: int) -> bool:
     """
     return (
         db.query(KnowledgeDocument)
-        .filter(KnowledgeDocument.project_id == project_id, KnowledgeDocument.status == "ready")
+        .filter(
+            KnowledgeDocument.project_id == project_id,
+            KnowledgeDocument.status == "ready",
+        )
         .count()
         > 0
     )

@@ -3,7 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.schemas import SystemSettingsOut, SystemSettingsUpdate
-from app.services.settings_service import load_config_to_runtime, serialize_settings, update_config
+from app.services.settings_service import (
+    load_config_to_runtime,
+    serialize_settings,
+    update_config,
+)
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 

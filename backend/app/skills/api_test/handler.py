@@ -26,8 +26,12 @@ async def run(inputs: dict, context: SkillContext) -> dict:
     scope = inputs.get("scope")
     knowledge = inputs.get("knowledge")
     if context.use_mock:
-        return {"cases": mock_cases(feature_item["feature"], 2, ["exception"], SKILL_NAME)}
+        return {
+            "cases": mock_cases(feature_item["feature"], 2, ["exception"], SKILL_NAME)
+        }
 
     prompt = load_prompt(SKILL_DIR, "prompt.md")
-    cases = await call_for_cases(prompt, feature_to_user_prompt(feature_item, scope, knowledge), SKILL_NAME)
+    cases = await call_for_cases(
+        prompt, feature_to_user_prompt(feature_item, scope, knowledge), SKILL_NAME
+    )
     return {"cases": cases}

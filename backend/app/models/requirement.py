@@ -10,6 +10,7 @@ from app.database import Base
 
 class RequirementDocument(Base):
     """单个需求文档"""
+
     __tablename__ = "requirement_documents"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -17,21 +18,32 @@ class RequirementDocument(Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     source_type: Mapped[str] = mapped_column(String(20), default="text")  # text, file
     raw_content: Mapped[str] = mapped_column(Text, default="")
-    test_scope: Mapped[str] = mapped_column(Text, default="")  # JSON: in_scope/out_scope/risks
-    status: Mapped[str] = mapped_column(String(20), default="uploaded")  # uploaded, structured, confirmed
-    is_eval: Mapped[bool] = mapped_column(default=False)  # 评测运行产生的文档，业务列表默认过滤
+    test_scope: Mapped[str] = mapped_column(
+        Text, default=""
+    )  # JSON: in_scope/out_scope/risks
+    status: Mapped[str] = mapped_column(
+        String(20), default="uploaded"
+    )  # uploaded, structured, confirmed
+    is_eval: Mapped[bool] = mapped_column(
+        default=False
+    )  # 评测运行产生的文档，业务列表默认过滤
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     project: Mapped["Project"] = relationship(back_populates="requirements")
-    items: Mapped[list["RequirementItem"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+    items: Mapped[list["RequirementItem"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
 
 
 class RequirementItem(Base):
     """项目的需求文档条目（一对多）"""
+
     __tablename__ = "requirement_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    document_id: Mapped[int] = mapped_column(ForeignKey("requirement_documents.id"), nullable=False)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("requirement_documents.id"), nullable=False
+    )
     module: Mapped[str] = mapped_column(String(100), default="")
     feature: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")

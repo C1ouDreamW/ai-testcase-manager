@@ -3,9 +3,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file = "../.env",
+        env_file="../.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -48,5 +49,6 @@ class Settings(BaseSettings):
             bool: 是否使用模拟 LLM。
         """
         return self.llm_mock_mode or not self.llm_api_key
+
 
 settings = Settings()

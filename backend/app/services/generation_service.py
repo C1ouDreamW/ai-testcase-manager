@@ -78,7 +78,9 @@ def build_strategy_config_payload(data) -> str:
         str: 策略配置的 JSON 字符串。
     """
     registry = get_registry()
-    specialist_skills = registry.validate_specialist_skills(data.specialist_skills or [])
+    specialist_skills = registry.validate_specialist_skills(
+        data.specialist_skills or []
+    )
     return json.dumps(
         {
             "strategy": registry.normalize_strategy(data.strategy),
@@ -108,7 +110,9 @@ def _skill_context(task: GenerationTask, strategy: str) -> SkillContext:
     )
 
 
-async def structure_requirements(db: Session, document: RequirementDocument) -> list[RequirementItem]:
+async def structure_requirements(
+    db: Session, document: RequirementDocument
+) -> list[RequirementItem]:
     """解析需求文档内容，提取功能点并持久化到数据库。
 
     调用需求解析技能，删除旧的解析结果，创建新的 RequirementItem 记录。
@@ -122,7 +126,9 @@ async def structure_requirements(db: Session, document: RequirementDocument) -> 
     """
     items_data = await parse_requirements(document.raw_content)
     document.status = "structured"
-    db.query(RequirementItem).filter(RequirementItem.document_id == document.id).delete()
+    db.query(RequirementItem).filter(
+        RequirementItem.document_id == document.id
+    ).delete()
 
     db_items = []
     for idx, item in enumerate(items_data):
@@ -146,7 +152,9 @@ async def structure_requirements(db: Session, document: RequirementDocument) -> 
     return db_items
 
 
-def confirm_requirements(db: Session, document_id: int, item_ids: list[int] | None = None):
+def confirm_requirements(
+    db: Session, document_id: int, item_ids: list[int] | None = None
+):
     """确认或取消确认指定需求文档的功能点。
 
     如果未指定 item_ids，则确认全部功能点；否则仅确认指定的功能点并取消其余。
@@ -166,9 +174,9 @@ def confirm_requirements(db: Session, document_id: int, item_ids: list[int] | No
             ~RequirementItem.id.in_(item_ids),
         ).update({"confirmed": False}, synchronize_session=False)
     else:
-        db.query(RequirementItem).filter(RequirementItem.document_id == document_id).update(
-            {"confirmed": True}, synchronize_session=False
-        )
+        db.query(RequirementItem).filter(
+            RequirementItem.document_id == document_id
+        ).update({"confirmed": True}, synchronize_session=False)
 
     doc = db.get(RequirementDocument, document_id)
     doc.status = "confirmed"
@@ -193,8 +201,12 @@ def _parse_scope(raw: str) -> dict | None:
     if not isinstance(data, dict):
         return None
     normalized = {
-        "in_scope": [str(s).strip() for s in (data.get("in_scope") or []) if str(s).strip()],
-        "out_scope": [str(s).strip() for s in (data.get("out_scope") or []) if str(s).strip()],
+        "in_scope": [
+            str(s).strip() for s in (data.get("in_scope") or []) if str(s).strip()
+        ],
+        "out_scope": [
+            str(s).strip() for s in (data.get("out_scope") or []) if str(s).strip()
+        ],
         "risks": [str(s).strip() for s in (data.get("risks") or []) if str(s).strip()],
     }
     if not any(normalized.values()):
@@ -261,10 +273,16 @@ async def run_judge_for_task(db: Session, task: GenerationTask) -> None:
         return
 
     item_ids = {d.requirement_item_id for d in drafts if d.requirement_item_id}
-    items_map = {
-        item.id: item
-        for item in db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all()
-    } if item_ids else {}
+    items_map = (
+        {
+            item.id: item
+            for item in db.query(RequirementItem)
+            .filter(RequirementItem.id.in_(item_ids))
+            .all()
+        }
+        if item_ids
+        else {}
+    )
 
     grouped: dict[int | None, list[GeneratedCaseDraft]] = {}
     for d in drafts:
@@ -282,7 +300,10 @@ async def run_judge_for_task(db: Session, task: GenerationTask) -> None:
         try:
             result = await registry.run(
                 "case_judge",
-                {"feature_item": feature_data, "cases": [_draft_for_judge(d) for d in group]},
+                {
+                    "feature_item": feature_data,
+                    "cases": [_draft_for_judge(d) for d in group],
+                },
                 context,
             )
         except Exception:
@@ -331,7 +352,10 @@ async def run_generation(db: Session, task: GenerationTask):
     try:
         items = (
             db.query(RequirementItem)
-            .filter(RequirementItem.document_id == task.document_id, RequirementItem.confirmed)
+            .filter(
+                RequirementItem.document_id == task.document_id,
+                RequirementItem.confirmed,
+            )
             .order_by(RequirementItem.sort_order)
             .all()
         )
@@ -350,7 +374,9 @@ async def run_generation(db: Session, task: GenerationTask):
         specialist_skills = config["specialist_skills"]
         use_knowledge = config["use_knowledge"]
         context = _skill_context(task, strategy)
-        db.query(GeneratedCaseDraft).filter(GeneratedCaseDraft.task_id == task.id).delete()
+        db.query(GeneratedCaseDraft).filter(
+            GeneratedCaseDraft.task_id == task.id
+        ).delete()
 
         item_case_map: dict[int, list] = {}
         knowledge_refs: dict[int, list] = {}
@@ -364,19 +390,30 @@ async def run_generation(db: Session, task: GenerationTask):
             knowledge = []
             if use_knowledge:
                 try:
-                    query = " ".join(filter(None, [item.module, item.feature, item.description]))
+                    query = " ".join(
+                        filter(None, [item.module, item.feature, item.description])
+                    )
                     knowledge = await retrieve(db, task.project_id, query)
                 except Exception:
                     knowledge = []  # 检索失败不阻塞生成，按无知识继续
                 if knowledge:
                     knowledge_refs[item.id] = [
-                        {"title": k["title"], "heading": k["heading"], "score": k["score"]}
+                        {
+                            "title": k["title"],
+                            "heading": k["heading"],
+                            "score": k["score"],
+                        }
                         for k in knowledge
                     ]
 
             core_result = await registry.run(
                 "case_writer",
-                {"feature_item": feature_data, "strategy": strategy, "scope": scope, "knowledge": knowledge},
+                {
+                    "feature_item": feature_data,
+                    "strategy": strategy,
+                    "scope": scope,
+                    "knowledge": knowledge,
+                },
                 context,
             )
             cases = list(core_result.get("cases") or [])
@@ -384,7 +421,11 @@ async def run_generation(db: Session, task: GenerationTask):
             for skill_name in specialist_skills:
                 extra = await registry.run(
                     skill_name,
-                    {"feature_item": feature_data, "scope": scope, "knowledge": knowledge},
+                    {
+                        "feature_item": feature_data,
+                        "scope": scope,
+                        "knowledge": knowledge,
+                    },
                     context,
                 )
                 cases.extend(extra.get("cases") or [])
@@ -398,7 +439,9 @@ async def run_generation(db: Session, task: GenerationTask):
                 if not is_meaningful_case(case, steps_list):
                     continue
 
-                quality_status, quality_issues = check_case({**case, "steps": steps_list})
+                quality_status, quality_issues = check_case(
+                    {**case, "steps": steps_list}
+                )
 
                 is_smoke = bool(case.get("is_smoke", False))
 
@@ -422,7 +465,11 @@ async def run_generation(db: Session, task: GenerationTask):
             task.progress = int((idx + 1) / total * 80)
             db.commit()
 
-        drafts = db.query(GeneratedCaseDraft).filter(GeneratedCaseDraft.task_id == task.id).all()
+        drafts = (
+            db.query(GeneratedCaseDraft)
+            .filter(GeneratedCaseDraft.task_id == task.id)
+            .all()
+        )
 
         task.stage = "重复检测"
         duplicate_count = detect_duplicates(drafts)
@@ -434,16 +481,22 @@ async def run_generation(db: Session, task: GenerationTask):
         task.progress = 95
         db.commit()
 
-        report_data = build_quality_report(drafts, items, item_case_map, duplicate_count)
+        report_data = build_quality_report(
+            drafts, items, item_case_map, duplicate_count
+        )
 
-        existing = db.query(QualityReport).filter(QualityReport.task_id == task.id).first()
+        existing = (
+            db.query(QualityReport).filter(QualityReport.task_id == task.id).first()
+        )
         if existing:
             db.delete(existing)
 
         report = QualityReport(task_id=task.id, **report_data)
         db.add(report)
 
-        task.knowledge_refs = json.dumps(knowledge_refs, ensure_ascii=False) if knowledge_refs else ""
+        task.knowledge_refs = (
+            json.dumps(knowledge_refs, ensure_ascii=False) if knowledge_refs else ""
+        )
         task.tokens_used = total_tokens(token_counter)
         task.status = "completed"
         task.progress = 100
@@ -476,10 +529,14 @@ def adopt_drafts(db: Session, task_id: int, draft_ids: list[int]) -> list[TestCa
     adopted = []
 
     for draft_id in draft_ids:
-        draft = db.query(GeneratedCaseDraft).filter(
-            GeneratedCaseDraft.id == draft_id,
-            GeneratedCaseDraft.task_id == task_id,
-        ).first()
+        draft = (
+            db.query(GeneratedCaseDraft)
+            .filter(
+                GeneratedCaseDraft.id == draft_id,
+                GeneratedCaseDraft.task_id == task_id,
+            )
+            .first()
+        )
         if not draft:
             continue
 
@@ -506,7 +563,9 @@ def adopt_drafts(db: Session, task_id: int, draft_ids: list[int]) -> list[TestCa
     return adopted
 
 
-def reject_drafts(db: Session, task_id: int, draft_ids: list[int], reject_reason: str = ""):
+def reject_drafts(
+    db: Session, task_id: int, draft_ids: list[int], reject_reason: str = ""
+):
     """驳回指定的用例草稿，标记为已驳回并记录原因。
 
     Args:

@@ -28,6 +28,7 @@ MEDIA_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # ---------------------------------------------------------------- Markdown
 
+
 def _encode_md_cell(value: str) -> str:
     """将单元格文本编码为 Markdown 表格安全格式，换行转为 `<br>`，竖线与反斜杠转义。
 
@@ -38,7 +39,12 @@ def _encode_md_cell(value: str) -> str:
         str: 编码后的 Markdown 安全文本。
     """
     text = (value or "").strip()
-    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\r\n", "\n").replace("\n", "<br>")
+    return (
+        text.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("\r\n", "\n")
+        .replace("\n", "<br>")
+    )
 
 
 def _decode_md_cell(value: str) -> str:
@@ -99,7 +105,9 @@ def _is_separator_row(cells: list[str]) -> bool:
     Returns:
         bool: 是否为分隔行。
     """
-    return bool(cells) and all(set(c.strip()) <= {"-", ":", " "} and "-" in c for c in cells)
+    return bool(cells) and all(
+        set(c.strip()) <= {"-", ":", " "} and "-" in c for c in cells
+    )
 
 
 def export_featurelist_md(title: str, items: list[dict]) -> str:
@@ -154,7 +162,11 @@ def parse_featurelist_md(data: bytes) -> list[dict]:
         raise DocumentParseError("未找到 Markdown 表格，请使用「导出清单」得到的格式")
 
     header_cells = [c.strip() for c in _split_md_row(table_lines[0])]
-    col_index = {HEADER_TO_FIELD[name]: i for i, name in enumerate(header_cells) if name in HEADER_TO_FIELD}
+    col_index = {
+        HEADER_TO_FIELD[name]: i
+        for i, name in enumerate(header_cells)
+        if name in HEADER_TO_FIELD
+    }
     if "feature" not in col_index:
         raise DocumentParseError("FeatureList 缺少「功能点」列")
 
@@ -181,6 +193,7 @@ def parse_featurelist_md(data: bytes) -> list[dict]:
 
 
 # ---------------------------------------------------------------- Excel
+
 
 def export_featurelist_xlsx(title: str, items: list[dict]) -> bytes:
     """将功能清单导出为 .xlsx 格式的字节数据。
@@ -245,12 +258,17 @@ def parse_featurelist_xlsx(data: bytes) -> list[dict]:
         raise DocumentParseError("FeatureList 为空")
 
     header = [str(h).strip() if h is not None else "" for h in rows[0]]
-    col_index = {HEADER_TO_FIELD[name]: i for i, name in enumerate(header) if name in HEADER_TO_FIELD}
+    col_index = {
+        HEADER_TO_FIELD[name]: i
+        for i, name in enumerate(header)
+        if name in HEADER_TO_FIELD
+    }
     if "feature" not in col_index:
         raise DocumentParseError("FeatureList 缺少「功能点」列")
 
     items: list[dict] = []
     for row in rows[1:]:
+
         def cell(field: str) -> str:
             idx = col_index.get(field)
             if idx is None or idx >= len(row):
@@ -269,6 +287,7 @@ def parse_featurelist_xlsx(data: bytes) -> list[dict]:
 
 
 # ---------------------------------------------------------------- shared / dispatch
+
 
 def _build_item(cell) -> dict:
     """用 cell 取值函数构建标准化的功能点字典，自动校验优先级合法性。
@@ -292,7 +311,9 @@ def _build_item(cell) -> dict:
     }
 
 
-def export_featurelist(title: str, items: list[dict], fmt: str = "xlsx") -> tuple[bytes, str, str]:
+def export_featurelist(
+    title: str, items: list[dict], fmt: str = "xlsx"
+) -> tuple[bytes, str, str]:
     """导出功能清单的统一入口，根据格式返回字节内容、媒体类型和文件扩展名。
 
     Args:

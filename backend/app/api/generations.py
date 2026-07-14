@@ -61,7 +61,9 @@ def list_tasks(project_id: int, db: Session = Depends(get_db)):
     """
     return (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(GenerationTask.project_id == project_id, ~GenerationTask.is_eval)
         .order_by(GenerationTask.created_at.desc())
         .all()
@@ -94,7 +96,10 @@ async def create_task(
 
     doc = (
         db.query(RequirementDocument)
-        .filter(RequirementDocument.id == data.document_id, RequirementDocument.project_id == project_id)
+        .filter(
+            RequirementDocument.id == data.document_id,
+            RequirementDocument.project_id == project_id,
+        )
         .first()
     )
     if not doc:
@@ -130,7 +135,9 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
     """
     tasks = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(GenerationTask.project_id == project_id, ~GenerationTask.is_eval)
         .order_by(GenerationTask.created_at.desc())
         .all()
@@ -164,7 +171,9 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
                 created_at=t.created_at,
                 draft_count=len(drafts),
                 smoke_count=sum(1 for d in drafts if d.is_smoke),
-                coverage_rate=t.quality_report.coverage_rate if t.quality_report else None,
+                coverage_rate=t.quality_report.coverage_rate
+                if t.quality_report
+                else None,
                 review_stats=t.review_stats,
             )
         )
@@ -188,7 +197,9 @@ def get_task(project_id: int, task_id: int, db: Session = Depends(get_db)):
     """
     task = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
         .first()
     )
@@ -238,7 +249,9 @@ def export_drafts(
     item_ids = {d.requirement_item_id for d in drafts if d.requirement_item_id}
     items_map = {}
     if item_ids:
-        for item in db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all():
+        for item in (
+            db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all()
+        ):
             items_map[item.id] = item
 
     doc = db.get(RequirementDocument, task.document_id)
@@ -247,24 +260,28 @@ def export_drafts(
     cases = []
     for d in drafts:
         item = items_map.get(d.requirement_item_id)
-        cases.append({
-            "id": d.id,
-            "module": item.module if item else "",
-            "feature": item.feature if item else "",
-            "title": d.title,
-            "priority": d.priority,
-            "case_type": d.case_type,
-            "is_smoke": d.is_smoke,
-            "precondition": d.precondition,
-            "steps": d.steps,
-            "expected_result": d.expected_result,
-            "review_status": d.review_status,
-            "source": "ai_generated",
-        })
+        cases.append(
+            {
+                "id": d.id,
+                "module": item.module if item else "",
+                "feature": item.feature if item else "",
+                "title": d.title,
+                "priority": d.priority,
+                "case_type": d.case_type,
+                "is_smoke": d.is_smoke,
+                "precondition": d.precondition,
+                "steps": d.steps,
+                "expected_result": d.expected_result,
+                "review_status": d.review_status,
+                "source": "ai_generated",
+            }
+        )
 
     fmt = "md" if format == "md" else "xlsx"
     export_title = f"{doc_title}-生成任务{task_id}"
-    content, media_type, ext = export_testcases(export_title, cases, fmt=fmt, include_review=True)
+    content, media_type, ext = export_testcases(
+        export_title, cases, fmt=fmt, include_review=True
+    )
     suffix = "冒烟" if smoke_only else "用例"
     filename = f"{doc_title}-任务{task_id}-{suffix}.{ext}"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
@@ -272,7 +289,9 @@ def export_drafts(
 
 
 @router.post("/{task_id}/review", response_model=list[TestCaseOut])
-def review_drafts(project_id: int, task_id: int, data: ReviewAction, db: Session = Depends(get_db)):
+def review_drafts(
+    project_id: int, task_id: int, data: ReviewAction, db: Session = Depends(get_db)
+):
     """批量采纳或驳回测试用例草稿。
 
     Args:
@@ -312,7 +331,9 @@ async def rejudge_task(project_id: int, task_id: int, db: Session = Depends(get_
     """
     task = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
         .first()
     )
@@ -358,7 +379,9 @@ def edit_draft(
     """
     draft = (
         db.query(GeneratedCaseDraft)
-        .filter(GeneratedCaseDraft.id == draft_id, GeneratedCaseDraft.task_id == task_id)
+        .filter(
+            GeneratedCaseDraft.id == draft_id, GeneratedCaseDraft.task_id == task_id
+        )
         .first()
     )
     if not draft:

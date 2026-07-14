@@ -96,7 +96,9 @@ def _load_handler(skill_dir: Path, skill_name: str) -> SkillRunFn:
     return run_fn
 
 
-def discover_skills(root: Path | None = None) -> tuple[dict[str, SkillMeta], dict[str, SkillRunFn]]:
+def discover_skills(
+    root: Path | None = None,
+) -> tuple[dict[str, SkillMeta], dict[str, SkillRunFn]]:
     """发现并加载指定根目录下所有的技能插件。
 
     遍历子目录，跳过以下划线开头、shared 目录以及不含 skill.yaml 的目录。

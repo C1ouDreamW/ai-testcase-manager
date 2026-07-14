@@ -1,16 +1,20 @@
-from dataclasses import dataclass,field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any,Awaitable,Callable,Literal
+from typing import Any, Awaitable, Callable, Literal
 
 
-SkillCategory = Literal["core","specialist","utility"] # 核心、专家、辅助
-SkillStage = Literal["requirement", "generation", "quality"] # 需求阶段、生成阶段、质检阶段
+SkillCategory = Literal["core", "specialist", "utility"]  # 核心、专家、辅助
+SkillStage = Literal[
+    "requirement", "generation", "quality"
+]  # 需求阶段、生成阶段、质检阶段
+
 
 @dataclass
 class SkillUIConfig:
     selectable: bool = False
     group: str | None = None
     icon: str | None = None
+
 
 @dataclass
 class SkillMeta:

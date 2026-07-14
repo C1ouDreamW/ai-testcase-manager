@@ -63,7 +63,9 @@ async def propose_test_scope(raw_content: str) -> dict:
     return result.get("scope", {})
 
 
-async def generate_cases_for_feature(feature_item: dict, strategy: str = "detailed") -> list[dict]:
+async def generate_cases_for_feature(
+    feature_item: dict, strategy: str = "detailed"
+) -> list[dict]:
     """根据单个功能点生成测试用例。
 
     Args:

@@ -1,4 +1,10 @@
-def mock_cases(feature: str, count: int, case_types: list[str], skill_name: str, smoke: bool = False) -> list[dict]:
+def mock_cases(
+    feature: str,
+    count: int,
+    case_types: list[str],
+    skill_name: str,
+    smoke: bool = False,
+) -> list[dict]:
     """生成模拟测试用例数据，用于 mock 模式下的离线开发。
 
     Args:
@@ -14,18 +20,22 @@ def mock_cases(feature: str, count: int, case_types: list[str], skill_name: str,
     cases = []
     for i in range(count):
         case_type = case_types[i % len(case_types)]
-        prefix = {"functional": "功能", "boundary": "边界", "exception": "异常"}.get(case_type, "")
-        cases.append({
-            "title": f"{prefix}-{feature}-用例{i + 1}",
-            "priority": "P0" if i == 0 else "P1",
-            "case_type": case_type,
-            # quick 模式全部为冒烟，完整模式仅首条（P0 正常流程）为冒烟
-            "is_smoke": True if smoke else (i == 0),
-            "precondition": f"用户已进入{feature}相关页面",
-            "steps": ["执行相关操作", "观察系统响应"],
-            "expected_result": "系统按预期响应",
-            "skill_name": skill_name,
-        })
+        prefix = {"functional": "功能", "boundary": "边界", "exception": "异常"}.get(
+            case_type, ""
+        )
+        cases.append(
+            {
+                "title": f"{prefix}-{feature}-用例{i + 1}",
+                "priority": "P0" if i == 0 else "P1",
+                "case_type": case_type,
+                # quick 模式全部为冒烟，完整模式仅首条（P0 正常流程）为冒烟
+                "is_smoke": True if smoke else (i == 0),
+                "precondition": f"用户已进入{feature}相关页面",
+                "steps": ["执行相关操作", "观察系统响应"],
+                "expected_result": "系统按预期响应",
+                "skill_name": skill_name,
+            }
+        )
     return cases
 
 

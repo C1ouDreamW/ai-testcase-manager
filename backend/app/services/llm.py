@@ -8,7 +8,9 @@ from app.config import settings
 
 # 按异步上下文累计 token 用量：run_generation 开始时创建计数器，
 # 期间所有 LLM 调用（生成 + 专项 + Judge）都会累加到同一个计数器。
-_token_counter: contextvars.ContextVar[dict | None] = contextvars.ContextVar("token_counter", default=None)
+_token_counter: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "token_counter", default=None
+)
 
 
 def start_token_tracking() -> dict:
@@ -82,16 +84,22 @@ def _friendly_error(exc: Exception, kind: str) -> LLMCallError:
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
         if code in (401, 403):
-            return LLMCallError(f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试")
+            return LLMCallError(
+                f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试"
+            )
         if code == 429:
             return LLMCallError(f"{kind}调用触发限流（429），请稍后重试")
         if code == 404:
-            return LLMCallError(f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置")
+            return LLMCallError(
+                f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置"
+            )
         return LLMCallError(f"{kind}调用失败（HTTP {code}），请检查「设置」页配置")
     return LLMCallError(f"无法连接{kind}服务，请检查接口地址与网络：{exc}")
 
 
-async def chat_completion(system_prompt: str, user_prompt: str, *, use_eval_model: bool = False) -> str:
+async def chat_completion(
+    system_prompt: str, user_prompt: str, *, use_eval_model: bool = False
+) -> str:
     """异步发送 Chat Completions 请求到 LLM 服务。
 
     mock 模式下直接返回空字符串。
@@ -147,8 +155,14 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
         RuntimeError: 未配置 Embedding 模型时抛出。
         LLMCallError: Embedding 调用失败时抛出。
     """
-    if not (settings.embedding_base_url and settings.embedding_api_key and settings.embedding_model):
-        raise RuntimeError("未配置 Embedding 模型，请先在设置中填写 Embedding API 地址、模型和 Key")
+    if not (
+        settings.embedding_base_url
+        and settings.embedding_api_key
+        and settings.embedding_model
+    ):
+        raise RuntimeError(
+            "未配置 Embedding 模型，请先在设置中填写 Embedding API 地址、模型和 Key"
+        )
 
     try:
         async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:

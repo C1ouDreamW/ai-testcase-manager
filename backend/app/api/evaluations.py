@@ -40,7 +40,9 @@ def _eval_project(db: Session) -> Project:
     """
     project = db.query(Project).filter(Project.is_eval).first()
     if not project:
-        project = Project(name=EVAL_PROJECT_NAME, description="评测专用隐藏项目", is_eval=True)
+        project = Project(
+            name=EVAL_PROJECT_NAME, description="评测专用隐藏项目", is_eval=True
+        )
         db.add(project)
         db.commit()
         db.refresh(project)
@@ -136,6 +138,7 @@ def _sample_titles(db: Session) -> dict[int, str]:
 
 # ---------- 样本管理 ----------
 
+
 @router.get("/samples", response_model=list[EvalSampleOut])
 def list_samples(db: Session = Depends(get_db)):
     """列出所有评测样本。
@@ -171,7 +174,9 @@ def create_sample(data: EvalSampleCreate, db: Session = Depends(get_db)):
         project_id=_eval_project(db).id,
         title=data.title.strip(),
         content=data.content,
-        checkpoints=json.dumps([cp.model_dump() for cp in data.checkpoints], ensure_ascii=False),
+        checkpoints=json.dumps(
+            [cp.model_dump() for cp in data.checkpoints], ensure_ascii=False
+        ),
     )
     db.add(sample)
     db.commit()
@@ -180,7 +185,9 @@ def create_sample(data: EvalSampleCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/samples/{sample_id}", response_model=EvalSampleOut)
-def update_sample(sample_id: int, data: EvalSampleUpdate, db: Session = Depends(get_db)):
+def update_sample(
+    sample_id: int, data: EvalSampleUpdate, db: Session = Depends(get_db)
+):
     """更新评测样本的标题、内容或标准测试点。
 
     Args:
@@ -203,7 +210,9 @@ def update_sample(sample_id: int, data: EvalSampleUpdate, db: Session = Depends(
     if data.content is not None:
         sample.content = data.content
     if data.checkpoints is not None:
-        sample.checkpoints = json.dumps([cp.model_dump() for cp in data.checkpoints], ensure_ascii=False)
+        sample.checkpoints = json.dumps(
+            [cp.model_dump() for cp in data.checkpoints], ensure_ascii=False
+        )
     db.commit()
     db.refresh(sample)
     return _sample_to_out(sample)
@@ -231,6 +240,7 @@ def delete_sample(sample_id: int, db: Session = Depends(get_db)):
 
 
 # ---------- 评测运行 ----------
+
 
 async def _run_eval_background(run_id: int):
     """后台异步执行评测运行，使用独立数据库会话。
@@ -290,7 +300,9 @@ def create_run(
     if not samples:
         raise HTTPException(400, "请至少选择一个评测样本")
 
-    running = db.query(EvalRun).filter(EvalRun.status.in_(["pending", "running"])).count()
+    running = (
+        db.query(EvalRun).filter(EvalRun.status.in_(["pending", "running"])).count()
+    )
     if running:
         raise HTTPException(400, "已有评测正在运行，请等待完成")
 
@@ -354,7 +366,9 @@ def get_eval_task(task_id: int, db: Session = Depends(get_db)):
     """
     task = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(GenerationTask.id == task_id, GenerationTask.is_eval)
         .first()
     )

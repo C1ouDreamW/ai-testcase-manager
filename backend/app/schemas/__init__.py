@@ -374,6 +374,7 @@ class SystemSettingsUpdate(BaseModel):
 
 # ---------- 评测 ----------
 
+
 class EvalCheckpoint(BaseModel):
     text: str
     keywords: list[str] = []
