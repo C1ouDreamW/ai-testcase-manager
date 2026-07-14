@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+*.db
+
+# Node
+node_modules/
+dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Uploads
+uploads/
+
+# 本地数据（SQLite 含 API Key、Chroma 含知识库原文向量）
+backend/data/
+
