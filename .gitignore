@@ -1,10 +1,13 @@
 # Python
 __pycache__/
+*.pytest_cache
 *.py[cod]
 venv/
 .venv/
 .env
 *.db
+autotest/reports
+.browsers
 
 # Node
 node_modules/
