@@ -1,0 +1,22 @@
+[project]
+name = "autotest"
+version = "0.1.0"
+description = "AI Test Case Manager - Automated Tests"
+requires-python = ">=3.12"
+dependencies = [
+    "pytest==8.3.4",
+    "requests==2.32.3",
+    "pytest-html==4.1.1",
+    "python-docx==1.1.2",
+    "openpyxl==3.1.5",
+    "playwright==1.49.1",
+    "pytest-playwright==0.6.2",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "smoke: 核心链路冒烟用例",
+    "regression: 全量回归用例",
+]
+addopts = "-ra --strict-markers"
+testpaths = ["api", "ui"]
