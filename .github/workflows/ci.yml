@@ -5,6 +5,14 @@ on:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   changes:
@@ -12,6 +20,8 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      api_tests: ${{ steps.filter.outputs.api_tests }}
+      ui_tests: ${{ steps.filter.outputs.ui_tests }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -24,10 +34,22 @@ jobs:
             frontend:
               - 'frontend/**'
               - '.github/workflows/ci.yml'
+            api_tests:
+              - 'backend/**'
+              - 'autotest/conftest.py'
+              - 'autotest/api/**'
+              - 'autotest/pyproject.toml'
+              - 'autotest/uv.lock'
+              - '.github/workflows/ci.yml'
+            ui_tests:
+              - 'backend/**'
+              - 'frontend/**'
+              - 'autotest/**'
+              - '.github/workflows/ci.yml'
 
   backend-lint:
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,7 +63,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --locked
 
       - name: Lint with ruff
         run: |
@@ -50,7 +72,7 @@ jobs:
 
   frontend-build:
     needs: changes
-    if: ${{ needs.changes.outputs.frontend == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.frontend == 'true' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -64,5 +86,93 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - run: npm install
+      - run: npm ci
       - run: npm run build
+
+  api-tests:
+    name: API tests
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.api_tests == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/uv.lock
+            autotest/uv.lock
+
+      - name: Install backend dependencies
+        run: uv sync --project backend --locked
+
+      - name: Install test dependencies
+        run: uv sync --project autotest --locked
+
+      - name: Run API test suite
+        working-directory: autotest
+        run: uv run pytest api --alluredir=reports/allure-results
+
+      - name: Upload API test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-allure-results
+          path: autotest/reports/allure-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ui-tests:
+    name: UI tests
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.ui_tests == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/uv.lock
+            autotest/uv.lock
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install backend dependencies
+        run: uv sync --project backend --locked
+
+      - name: Install test dependencies
+        run: uv sync --project autotest --locked
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: autotest
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run UI test suite
+        working-directory: autotest
+        run: uv run pytest ui --screenshot only-on-failure --output ui/artifacts --alluredir=reports/allure-results
+
+      - name: Upload UI test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: |
+            autotest/reports/allure-results
+            autotest/ui/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
