@@ -18,5 +18,6 @@ markers = [
     "smoke: 核心链路冒烟用例",
     "regression: 全量回归用例",
 ]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --basetemp=reports/pytest-tmp"
+cache_dir = "reports/.pytest_cache"
 testpaths = ["api", "ui"]

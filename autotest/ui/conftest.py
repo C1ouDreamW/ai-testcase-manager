@@ -13,7 +13,7 @@ import requests
 from api.client import ApiClient
 
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-WEB_DIR = ROOT_DIR / "web"
+WEB_DIR = ROOT_DIR / "frontend"
 WEB_PORT = int(os.environ.get("AITC_TEST_WEB_PORT", "5273"))
 # Windows 上 npm 是 npm.cmd，直接调 "npm" 会找不到可执行文件
 NPM = "npm.cmd" if sys.platform == "win32" else "npm"

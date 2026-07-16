@@ -33,3 +33,4 @@ uploads/
 # 本地数据（SQLite 含 API Key、Chroma 含知识库原文向量）
 backend/data/
 
+temp/

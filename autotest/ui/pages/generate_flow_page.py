@@ -17,6 +17,7 @@ class GenerateFlowPage(BasePage):
 
     def expect_confirm_step(self):
         expect(self.page.get_by_text("确认功能点").first).to_be_visible(timeout=30000)
+        expect(self.feature_rows().first).to_be_visible(timeout=30000)
 
     def feature_rows(self):
         return self.page.locator(".ant-table-tbody tr.ant-table-row")
