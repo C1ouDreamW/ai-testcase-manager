@@ -196,9 +196,9 @@ export default function GenerationHistory({ projectId }) {
                 <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#16a34a' }}>{detail.review_stats?.adopted ?? 0}</div><div className="quality-stat-label">已采纳</div></div>
                 <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#dc2626' }}>{detail.review_stats?.rejected ?? 0}</div><div className="quality-stat-label">已驳回</div></div>
                 <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#ea580c' }}>{detail.review_stats?.pending ?? 0}</div><div className="quality-stat-label">未处理</div></div>
-                <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#4F46E5' }}>{detail.quality_report.coverage_rate}%</div><div className="quality-stat-label">覆盖率</div></div>
+                <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#2563EB' }}>{detail.quality_report.coverage_rate}%</div><div className="quality-stat-label">覆盖率</div></div>
                 {detail.quality_report.avg_judge_score != null && (
-                  <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#8b5cf6' }}>{detail.quality_report.avg_judge_score}</div><div className="quality-stat-label">AI 均分</div></div>
+                  <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#0891B2' }}>{detail.quality_report.avg_judge_score}</div><div className="quality-stat-label">AI 均分</div></div>
                 )}
                 {detail.tokens_used > 0 && (
                   <div className="quality-stat"><div className="quality-stat-value">{detail.tokens_used >= 1000 ? `${(detail.tokens_used / 1000).toFixed(1)}k` : detail.tokens_used}</div><div className="quality-stat-label">Token</div></div>

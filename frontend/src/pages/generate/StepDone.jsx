@@ -29,7 +29,7 @@ export default function StepDone({ task, projectId, exporting, onExport, onNewTa
         <div className="quality-stat"><div className="quality-stat-value">{total}</div><div className="quality-stat-label">总生成</div></div>
         <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#16a34a' }}>{adopted}</div><div className="quality-stat-label">已采纳</div></div>
         <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#dc2626' }}>{rejected}</div><div className="quality-stat-label">已驳回</div></div>
-        <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#4F46E5' }}>{stats.adoption_rate ?? 0}%</div><div className="quality-stat-label">采纳率</div></div>
+        <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#2563EB' }}>{stats.adoption_rate ?? 0}%</div><div className="quality-stat-label">采纳率</div></div>
       </div>
 
       <div style={{ textAlign: 'center', paddingBottom: 24 }}>

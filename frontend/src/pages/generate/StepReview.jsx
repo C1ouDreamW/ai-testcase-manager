@@ -69,7 +69,7 @@ export default function StepReview({
     <Card className="surface-card" title="生成结果与评审">
       {task.status === 'generating' && (
         <div style={{ marginBottom: 20 }}>
-          <Progress percent={task.progress} status="active" strokeColor="#4F46E5" />
+          <Progress percent={task.progress} status="active" strokeColor="#2563EB" />
           <Text type="secondary" style={{ marginTop: 8, display: 'block' }}>
             {task.stage || 'AI 正在按功能点生成用例...'}
           </Text>
@@ -88,9 +88,9 @@ export default function StepReview({
             <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#16a34a' }}>{task.quality_report.pass_count}</div><div className="quality-stat-label">通过</div></div>
             <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#ea580c' }}>{task.quality_report.warning_count}</div><div className="quality-stat-label">警告</div></div>
             <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#dc2626' }}>{task.quality_report.fail_count}</div><div className="quality-stat-label">不合格</div></div>
-            <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#4F46E5' }}>{task.quality_report.coverage_rate}%</div><div className="quality-stat-label">覆盖率</div></div>
+            <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#2563EB' }}>{task.quality_report.coverage_rate}%</div><div className="quality-stat-label">覆盖率</div></div>
             {task.quality_report.avg_judge_score != null && (
-              <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#8b5cf6' }}>{task.quality_report.avg_judge_score}</div><div className="quality-stat-label">AI 均分</div></div>
+              <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#0891B2' }}>{task.quality_report.avg_judge_score}</div><div className="quality-stat-label">AI 均分</div></div>
             )}
             {task.quality_report.hallucination_count > 0 && (
               <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#dc2626' }}>{task.quality_report.hallucination_count}</div><div className="quality-stat-label">疑似幻觉</div></div>
@@ -116,7 +116,7 @@ export default function StepReview({
           <Card size="small" className="surface-card" title="本次生成引用的知识库内容" style={{ marginBottom: 20 }}>
             <Space wrap>
               {unique.map((r, i) => (
-                <Tag key={i} color="geekblue">
+                <Tag key={i} color="cyan">
                   《{r.title}》{r.heading ? ` · ${r.heading}` : ''}
                 </Tag>
               ))}

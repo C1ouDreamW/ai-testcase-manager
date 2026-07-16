@@ -259,7 +259,7 @@ export default function EvalPanel() {
                 : '排队中…'}
             </div>
             {r.stage && (
-              <div style={{ fontSize: 12, color: '#4F46E5', marginTop: 2 }}>{r.stage}</div>
+              <div style={{ fontSize: 12, color: '#2563EB', marginTop: 2 }}>{r.stage}</div>
             )}
           </div>
         );

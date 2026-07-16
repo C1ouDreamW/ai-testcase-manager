@@ -69,9 +69,13 @@ export default function AppLayout() {
         <aside className="app-sidebar">
           <Link to="/" className="app-brand">
             <div className="app-brand-icon"><ThunderboltFilled /></div>
-            <span className="app-brand-title">AI用例管理平台</span>
+            <span className="app-brand-copy">
+              <span className="app-brand-title">AI用例管理平台</span>
+              <span className="app-brand-subtitle">测试智能工作台</span>
+            </span>
           </Link>
 
+          <div className="sidebar-section-label sidebar-section-label-main">工作台</div>
           <nav className="sidebar-nav">
             <Link to="/" className={`sidebar-link${isHome ? ' active' : ''}`}>
               <AppstoreOutlined />
@@ -95,8 +99,12 @@ export default function AppLayout() {
             <>
               <div className="sidebar-divider" />
               <Link to={continueAction.path} className="sidebar-continue-link">
-                <ThunderboltOutlined />
-                <span className="sidebar-continue-text">继续：{continueProject.name}</span>
+                <span className="sidebar-continue-icon"><ThunderboltOutlined /></span>
+                <span className="sidebar-continue-content">
+                  <span className="sidebar-continue-eyebrow">继续上次工作</span>
+                  <span className="sidebar-continue-text">{continueProject.name}</span>
+                </span>
+                <span className="sidebar-continue-arrow" aria-hidden="true">›</span>
               </Link>
             </>
           )}
@@ -106,9 +114,13 @@ export default function AppLayout() {
               <div className="sidebar-divider" />
               <div className="sidebar-section-label">当前项目</div>
               <div className="sidebar-project">
-                <div className="sidebar-project-name">
-                  {loadingProject ? <Spin size="small" /> : project?.name || '加载中...'}
-                </div>
+                <span className="sidebar-project-icon"><FolderOutlined /></span>
+                <span className="sidebar-project-copy">
+                  <span className="sidebar-project-meta">正在处理</span>
+                  <span className="sidebar-project-name">
+                    {loadingProject ? <Spin size="small" /> : project?.name || '加载中...'}
+                  </span>
+                </span>
               </div>
               <nav className="sidebar-nav">
                 {PROJECT_NAV.map(({ key, suffix, label, icon: Icon }) => {

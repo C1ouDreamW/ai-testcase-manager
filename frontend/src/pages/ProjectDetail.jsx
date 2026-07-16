@@ -173,7 +173,7 @@ export default function ProjectDetail() {
                       icon={<DatabaseOutlined />}
                       label="用例总数"
                       value={stats.testcases}
-                      color="#4F46E5"
+                      color="#2563EB"
                     />
                   </Col>
                   <Col xs={24} sm={12} lg={8}>
@@ -189,7 +189,7 @@ export default function ProjectDetail() {
                       icon={<RobotOutlined />}
                       label="AI 生成占比"
                       value={`${composition.aiRatio}%`}
-                      color="#8b5cf6"
+                      color="#0891B2"
                     />
                   </Col>
                 </Row>
