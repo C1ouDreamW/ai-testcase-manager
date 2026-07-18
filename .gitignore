@@ -3,17 +3,11 @@ __pycache__/
 *.pytest_cache
 *.py[cod]
 venv/
-.venv/
 .env
-*.db
-autotest/reports
-.browsers
 
 # Node
 node_modules/
 dist/
-.env.local
-*.local
 
 # IDE
 .idea/
@@ -24,13 +18,23 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Logs
-*.log
-
 # Uploads
 uploads/
+
+# Playwright CLI artifacts
+.playwright-cli/
 
 # 本地数据（SQLite 含 API Key、Chroma 含知识库原文向量）
 backend/data/
 
+# 测试运行输出
+output/
+autotest/.browsers/
+autotest/ui/artifacts/
+autotest/reports/
+autotest/test-results/
+
+# 本地工具缓存与临时目录
+.ruff_cache/
+.uv-cache/
 temp/
