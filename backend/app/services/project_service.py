@@ -5,37 +5,109 @@ from sqlalchemy.orm import Session
 
 from app.models.generation import GenerationTask
 from app.models.project import Project
+from app.models.requirement import RequirementDocument
 from app.models.testcase import TestCase
 
 
-def get_home_overview(db: Session) -> dict:
-    """获取首页概览数据，包含项目列表、用例和生成任务的统计信息。
+def compute_project_stage(db: Session, project_id: int) -> dict:
+    """从需求文档、生成任务、用例库的真实状态推导项目所处阶段。
 
-    排除评测专用项目（is_eval=True），按更新时间降序排列，
-    同时计算最近活跃的项目 ID。
-
-    Args:
-        db (Session): 数据库会话。
-
-    Returns:
-        dict: 包含 total_projects、total_testcases、total_generations、projects 和
-            latest_active_project_id 的概览字典。
+    阶段状态机：import → confirm → generate → review → done。
+    需求文档比最新生成任务更新时（开始新一轮），以文档状态为准。
     """
+    latest_doc = (
+        db.query(RequirementDocument)
+        .filter(
+            RequirementDocument.project_id == project_id,
+            RequirementDocument.is_eval == False,
+        )
+        .order_by(RequirementDocument.id.desc())
+        .first()
+    )
+    latest_task = (
+        db.query(GenerationTask)
+        .filter(
+            GenerationTask.project_id == project_id,
+            GenerationTask.is_eval == False,
+        )
+        .order_by(GenerationTask.id.desc())
+        .first()
+    )
+    testcase_count = (
+        db.query(func.count(TestCase.id))
+        .filter(TestCase.project_id == project_id)
+        .scalar()
+        or 0
+    )
+
+    result = {
+        "stage": "import",
+        "document_id": None,
+        "document_title": "",
+        "task_id": None,
+        "generating": False,
+        "failed": False,
+        "paused": False,
+        "pending_drafts": 0,
+        "item_count": 0,
+        "testcase_count": testcase_count,
+    }
+
+    if latest_doc is None:
+        return result
+
+    doc_newer_than_task = (
+        latest_task is None or latest_doc.created_at > latest_task.created_at
+    )
+
+    if doc_newer_than_task:
+        result["document_id"] = latest_doc.id
+        result["document_title"] = latest_doc.title
+        result["item_count"] = len(latest_doc.items)
+        result["stage"] = "generate" if latest_doc.status == "confirmed" else "confirm"
+        return result
+
+    result["task_id"] = latest_task.id
+    result["document_id"] = latest_task.document_id
+    if latest_task.status in ("pending", "generating", "pausing"):
+        result["stage"] = "review"
+        result["generating"] = True
+        return result
+    if latest_task.status == "paused":
+        result["stage"] = "review"
+        result["paused"] = True
+        return result
+    if latest_task.status == "failed":
+        result["stage"] = "generate"
+        result["failed"] = True
+        return result
+
+    stats = latest_task.review_stats
+    result["pending_drafts"] = stats["pending"]
+    result["stage"] = "review" if stats["pending"] > 0 else "done"
+    return result
+
+
+def get_home_overview(db: Session, user_id: int) -> dict:
     projects = (
         db.query(Project)
-        .filter(~Project.is_eval)
+        .filter(Project.user_id == user_id, Project.is_eval == False)
         .order_by(Project.updated_at.desc())
         .all()
     )
 
     testcase_counts = dict(
         db.query(TestCase.project_id, func.count(TestCase.id))
+        .join(Project, TestCase.project_id == Project.id)
+        .filter(Project.user_id == user_id, Project.is_eval == False)
         .group_by(TestCase.project_id)
         .all()
     )
     generation_counts = dict(
         db.query(GenerationTask.project_id, func.count(GenerationTask.id))
-        .filter(~GenerationTask.is_eval)
+        .join(Project, GenerationTask.project_id == Project.id)
+        .filter(Project.user_id == user_id, Project.is_eval == False)
+        .filter(GenerationTask.is_eval == False)
         .group_by(GenerationTask.project_id)
         .all()
     )
@@ -45,7 +117,9 @@ def get_home_overview(db: Session) -> dict:
             GenerationTask.project_id,
             func.max(GenerationTask.id).label("latest_id"),
         )
-        .filter(~GenerationTask.is_eval)
+        .join(Project, GenerationTask.project_id == Project.id)
+        .filter(Project.user_id == user_id, Project.is_eval == False)
+        .filter(GenerationTask.is_eval == False)
         .group_by(GenerationTask.project_id)
         .subquery()
     )
@@ -84,10 +158,17 @@ def get_home_overview(db: Session) -> dict:
     if latest_active_project_id is None and projects:
         latest_active_project_id = projects[0].id
 
+    latest_active_stage = (
+        compute_project_stage(db, latest_active_project_id)
+        if latest_active_project_id
+        else None
+    )
+
     return {
         "total_projects": len(projects),
         "total_testcases": sum(testcase_counts.values()),
         "total_generations": sum(generation_counts.values()),
         "projects": project_items,
         "latest_active_project_id": latest_active_project_id,
+        "latest_active_stage": latest_active_stage,
     }

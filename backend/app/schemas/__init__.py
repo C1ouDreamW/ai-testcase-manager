@@ -36,12 +36,32 @@ class ProjectStatsOut(BaseModel):
     last_generation_status: str | None = None
 
 
+class ProjectStageOut(BaseModel):
+    """项目当前所处的真实工作阶段，用于工作台与「继续工作」入口。
+
+    stage: import（导入需求）→ confirm（确认功能点）→ generate（AI 生成）
+           → review（人工评审）→ done（用例入库）
+    """
+
+    stage: Literal["import", "confirm", "generate", "review", "done"]
+    document_id: int | None = None
+    document_title: str = ""
+    task_id: int | None = None
+    generating: bool = False
+    failed: bool = False
+    paused: bool = False
+    pending_drafts: int = 0
+    item_count: int = 0
+    testcase_count: int = 0
+
+
 class HomeOverviewOut(BaseModel):
     total_projects: int
     total_testcases: int
     total_generations: int
     projects: list[ProjectStatsOut]
     latest_active_project_id: int | None = None
+    latest_active_stage: ProjectStageOut | None = None
 
 
 class StrategyOut(BaseModel):
@@ -87,6 +107,8 @@ class RequirementItemOut(BaseModel):
     priority: str
     sort_order: int
     confirmed: bool
+    source_type: str = "requirement"
+    source_ref_id: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -121,6 +143,63 @@ class RequirementDocumentOut(BaseModel):
     items: list[RequirementItemOut] = []
 
     model_config = {"from_attributes": True}
+
+
+class DesignInsightOut(BaseModel):
+    id: int
+    asset_id: int
+    page: str = ""
+    module: str = ""
+    feature: str
+    description: str = ""
+    acceptance_criteria: str = ""
+    constraints: str = ""
+    priority: str = "P1"
+    sort_order: int = 0
+    selected: bool = True
+    merged: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class DesignAssetOut(BaseModel):
+    id: int
+    project_id: int
+    document_id: int
+    asset_type: str
+    title: str = ""
+    filename: str = ""
+    content_type: str = ""
+    figma_url: str = ""
+    status: str
+    error_message: str = ""
+    parse_source: str = ""
+    image_summary: str = ""
+    created_at: datetime
+    insights: list[DesignInsightOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class FigmaLinkCreate(BaseModel):
+    document_id: int
+    url: str = Field(..., min_length=1, max_length=1000)
+    title: str = Field(default="", max_length=200)
+
+
+class DesignInsightUpdate(BaseModel):
+    page: str | None = None
+    module: str | None = None
+    feature: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    acceptance_criteria: str | None = None
+    constraints: str | None = None
+    priority: str | None = None
+    selected: bool | None = None
+
+
+class DesignMergeRequest(BaseModel):
+    insight_ids: list[int] = []
 
 
 class TestScopeUpdate(BaseModel):
@@ -175,6 +254,7 @@ class KnowledgeSearchHit(BaseModel):
     heading: str = ""
     source_type: str = "doc"
     score: float = 0.0
+    match: str = "vector"  # vector 语义 / keyword 关键词 / both 双路命中
 
 
 class GeneratedCaseDraftOut(BaseModel):
@@ -195,6 +275,8 @@ class GeneratedCaseDraftOut(BaseModel):
     skill_name: str
     judge_score: float | None = None
     judge_issues: str = ""
+    module: str = ""
+    feature: str = ""
 
     model_config = {"from_attributes": True}
 
@@ -239,6 +321,7 @@ class GenerationTaskOut(BaseModel):
     error_message: str
     tokens_used: int = 0
     knowledge_refs: str = ""  # JSON: {item_id: [{title, heading, score}]}，RAG 溯源
+    pause_requested: bool = False
     created_at: datetime
     updated_at: datetime
     drafts: list[GeneratedCaseDraftOut] = []
@@ -273,7 +356,7 @@ class ConfirmRequest(BaseModel):
 
 class ReviewAction(BaseModel):
     draft_ids: list[int]
-    action: str  # adopt, reject
+    action: Literal["adopt", "reject", "to_confirm"]
     reject_reason: str = ""  # 驳回原因（badcase 归因用）
 
 
@@ -305,14 +388,6 @@ class CatalogRename(BaseModel):
 
     @model_validator(mode="after")
     def validate_feature_rename(self):
-        """校验功能点重命名请求：重命名功能点时必须提供 old_feature。
-
-        Returns:
-            CatalogRename: 校验通过后的自身实例。
-
-        Raises:
-            ValueError: 重命名功能点但未提供 old_feature 时抛出。
-        """
         if self.type == "feature" and not self.old_feature:
             raise ValueError("重命名功能点需提供 old_feature")
         return self
@@ -325,6 +400,7 @@ class CatalogRenameOut(BaseModel):
 class TestCaseOut(BaseModel):
     id: int
     project_id: int
+    requirement_item_id: int | None = None
     project_name: str = ""
     title: str
     priority: str
@@ -342,6 +418,131 @@ class TestCaseOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ExecutionStats(BaseModel):
+    total: int
+    passed: int
+    failed: int
+    blocked: int
+    pending: int
+    executed: int
+    pass_rate: float
+
+
+class TestTaskCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = ""
+    batch_name: str = Field("线下测试", min_length=1, max_length=100)  # 首个批次名称
+    case_ids: list[int] = []
+    source_task_id: int | None = None  # 传入生成任务 ID 时，自动导入该任务已采纳入库的用例
+
+    @model_validator(mode="after")
+    def validate_case_source(self):
+        if not self.case_ids and self.source_task_id is None:
+            raise ValueError("请选择用例或指定生成任务")
+        return self
+
+
+class TestTaskUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=200)
+    description: str | None = None
+    status: Literal["in_progress", "completed"] | None = None
+
+
+class TestBatchCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    case_ids: list[int] = []
+    copy_from_batch_id: int | None = None  # 复用某个已有批次的用例集（结果重置）
+
+    @model_validator(mode="after")
+    def validate_case_source(self):
+        if not self.case_ids and self.copy_from_batch_id is None:
+            raise ValueError("请选择用例或指定要复用的批次")
+        return self
+
+
+class TestBatchUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=100)
+    status: Literal["in_progress", "completed"] | None = None
+
+
+class TestBatchOut(BaseModel):
+    id: int
+    task_id: int
+    name: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    stats: ExecutionStats
+
+    model_config = {"from_attributes": True}
+
+
+class TestTaskOut(BaseModel):
+    id: int
+    project_id: int
+    name: str
+    description: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    stats: ExecutionStats
+    batches: list[TestBatchOut] = []
+
+    model_config = {"from_attributes": True}
+
+
+class BatchCaseOut(BaseModel):
+    id: int  # 执行记录 ID
+    case_id: int
+    title: str = ""
+    priority: str = ""
+    case_type: str = ""
+    is_smoke: bool = False
+    precondition: str = ""
+    steps: str = ""
+    expected_result: str = ""
+    module: str = ""
+    feature: str = ""
+    result: str
+    note: str
+    defect_ref: str
+    executed_at: datetime | None = None
+
+
+class TestBatchDetailOut(TestBatchOut):
+    cases: list[BatchCaseOut] = []
+
+
+class BatchCaseMark(BaseModel):
+    result: Literal["pending", "passed", "failed", "blocked"]
+    note: str = ""
+    defect_ref: str = ""
+
+
+class BatchCaseBatchMark(BaseModel):
+    batch_case_ids: list[int] = Field(..., min_length=1)
+    result: Literal["pending", "passed", "failed", "blocked"]
+
+
+class BatchCasesAdd(BaseModel):
+    case_ids: list[int] = Field(..., min_length=1)
+
+
+class DefectItemOut(BaseModel):
+    batch_case_id: int
+    batch_id: int
+    batch_name: str
+    case_id: int
+    title: str = ""
+    priority: str = ""
+    module: str = ""
+    feature: str = ""
+    result: str
+    note: str
+    defect_ref: str
+    executed_at: datetime | None = None
+
+
 class SystemSettingsOut(BaseModel):
     llm_api_key_set: bool
     llm_api_key_masked: str
@@ -353,10 +554,29 @@ class SystemSettingsOut(BaseModel):
     eval_llm_api_key_masked: str = ""
     eval_llm_base_url: str = ""
     eval_llm_model: str = ""
+    vision_api_key_set: bool = False
+    vision_api_key_masked: str = ""
+    vision_base_url: str = ""
+    vision_model: str = ""
     embedding_api_key_set: bool = False
     embedding_api_key_masked: str = ""
     embedding_base_url: str = ""
     embedding_model: str = ""
+    rerank_api_key_set: bool = False
+    rerank_api_key_masked: str = ""
+    rerank_base_url: str = ""
+    rerank_model: str = ""
+
+
+class SettingsTestRequest(BaseModel):
+    target: Literal["generation", "eval", "vision", "embedding", "rerank"] = "generation"
+
+
+class SettingsTestOut(BaseModel):
+    ok: bool
+    message: str = ""
+    model: str = ""
+    base_url: str = ""
 
 
 class SystemSettingsUpdate(BaseModel):
@@ -367,13 +587,75 @@ class SystemSettingsUpdate(BaseModel):
     eval_llm_api_key: str | None = None
     eval_llm_base_url: str | None = None
     eval_llm_model: str | None = None
+    vision_api_key: str | None = None
+    vision_base_url: str | None = None
+    vision_model: str | None = None
     embedding_api_key: str | None = None
     embedding_base_url: str | None = None
     embedding_model: str | None = None
+    rerank_api_key: str | None = None
+    rerank_base_url: str | None = None
+    rerank_model: str | None = None
+
+
+# ---------- 测试助手 Agent ----------
+
+class AgentAttachmentIn(BaseModel):
+    asset_id: int
+    asset_type: str = "image"  # image / figma
+    title: str = ""
+    filename: str = ""
+    figma_url: str = ""
+
+
+class AgentChatRequest(BaseModel):
+    question: str = Field("", max_length=2000)
+    document_id: int | None = None
+    asset_ids: list[int] = []
+    attachments: list[AgentAttachmentIn] = []
+    reply_to_id: int | None = None
+
+    @model_validator(mode="after")
+    def require_question_or_attachments(self):
+        if not (self.question or "").strip() and not self.asset_ids and not self.attachments:
+            raise ValueError("请输入问题或附带设计稿")
+        if not (self.question or "").strip() and (self.asset_ids or self.attachments):
+            self.question = "请解析这些设计稿并列出功能点，等待我确认后再合并。"
+        return self
+
+
+class AgentToolCallOut(BaseModel):
+    name: str
+
+
+class AgentAttachmentOut(BaseModel):
+    asset_id: int
+    asset_type: str = "image"
+    title: str = ""
+    filename: str = ""
+    figma_url: str = ""
+
+
+class AgentReplyPreview(BaseModel):
+    id: int
+    role: str
+    content: str = ""
+
+
+class AgentMessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    tool_calls: list[AgentToolCallOut] = []
+    attachments: list[AgentAttachmentOut] = []
+    document_id: int | None = None
+    pending_insight_ids: list[int] = []
+    reply_to_id: int | None = None
+    reply_to: AgentReplyPreview | None = None
+    created_at: datetime
 
 
 # ---------- 评测 ----------
-
 
 class EvalCheckpoint(BaseModel):
     text: str

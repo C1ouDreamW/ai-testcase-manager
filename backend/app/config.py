@@ -1,20 +1,13 @@
 from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file="../.env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
-    database_url: str = f"sqlite:///{BASE_DIR / 'data' / 'app.db'}"
-    debug: bool = True
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    model_config = SettingsConfigDict(env_file="../.env", env_file_encoding="utf-8", extra="ignore")
 
-    # 生成模型
     llm_api_key: str = ""
     llm_base_url: str = "https://api.deepseek.com/v1"
     llm_model: str = "deepseek-v4-flash"
@@ -25,29 +18,46 @@ class Settings(BaseSettings):
     eval_llm_base_url: str = ""
     eval_llm_model: str = ""
 
-    # Embedding 模型
+    # 视觉模型（设计稿解析），必须支持 OpenAI-compatible 多模态消息
+    vision_api_key: str = ""
+    vision_base_url: str = ""
+    vision_model: str = ""
+
+    # Embedding 模型（知识库检索用），与 Chat 接口类型不同，需单独配置
     embedding_api_key: str = ""
     embedding_base_url: str = ""
     embedding_model: str = ""
 
+    # Rerank 模型（知识库检索精排），留空则只做混合检索 RRF 融合
+    rerank_api_key: str = ""
+    rerank_base_url: str = ""
+    rerank_model: str = ""
+
+    # 生产环境额外允许的自建 OpenAI 兼容接口域名（逗号分隔，不包含协议或路径）
+    model_api_extra_hosts: str = ""
+
+    # 登录账号（演示用，可通过环境变量覆盖）
+    auth_username: str = "admin"
+    auth_password: str = "nini123456"
+    auth_token_ttl_hours: int = 24
+    auth_max_attempts: int = 5
+    auth_lockout_minutes: int = 15
+    allow_registration: bool = True
+    registration_max_per_hour: int = 5
+
+    database_url: str = f"sqlite:///{BASE_DIR / 'data' / 'app.db'}"
+    design_asset_dir: str = ""
+    # LangGraph 运行检查点与业务库分开保存，便于失败任务恢复。
+    aitc_langgraph_checkpoint_path: str = ""
+    debug: bool = True
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
     @property
     def cors_origin_list(self) -> list[str]:
-        """将逗号分隔的 CORS 来源字符串解析为列表。
-
-        Returns:
-            list[str]: 去除空白后的 CORS 来源列表。
-        """
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
     def use_mock_llm(self) -> bool:
-        """判断是否使用模拟 LLM 模式。
-
-        当 mock 模式开启或未配置 API Key 时返回 True。
-
-        Returns:
-            bool: 是否使用模拟 LLM。
-        """
         return self.llm_mock_mode or not self.llm_api_key
 
 

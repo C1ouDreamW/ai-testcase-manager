@@ -28,34 +28,12 @@ MEDIA_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # ---------------------------------------------------------------- Markdown
 
-
 def _encode_md_cell(value: str) -> str:
-    """将单元格文本编码为 Markdown 表格安全格式，换行转为 `<br>`，竖线与反斜杠转义。
-
-    Args:
-        value (str): 原始单元格文本。
-
-    Returns:
-        str: 编码后的 Markdown 安全文本。
-    """
     text = (value or "").strip()
-    return (
-        text.replace("\\", "\\\\")
-        .replace("|", "\\|")
-        .replace("\r\n", "\n")
-        .replace("\n", "<br>")
-    )
+    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\r\n", "\n").replace("\n", "<br>")
 
 
 def _decode_md_cell(value: str) -> str:
-    """将 Markdown 表格单元格解码为原始文本，还原 `<br>`、竖线和反斜杠。
-
-    Args:
-        value (str): Markdown 编码后的单元格文本。
-
-    Returns:
-        str: 解码后的原始文本。
-    """
     text = (value or "").strip()
     text = text.replace("<br>", "\n").replace("<br/>", "\n")
     text = text.replace("\\|", "|").replace("\\\\", "\\")
@@ -63,14 +41,6 @@ def _decode_md_cell(value: str) -> str:
 
 
 def _split_md_row(line: str) -> list[str]:
-    """解析 Markdown 表格行，按竖线分割并处理转义，返回单元格列表。
-
-    Args:
-        line (str): Markdown 表格行字符串。
-
-    Returns:
-        list[str]: 去除首尾空格的单元格列表。
-    """
     cells: list[str] = []
     buf = ""
     escaped = False
@@ -97,29 +67,10 @@ def _split_md_row(line: str) -> list[str]:
 
 
 def _is_separator_row(cells: list[str]) -> bool:
-    """判断 Markdown 表格行是否为分隔行（如 `|---|---|`）。
-
-    Args:
-        cells (list[str]): 已分割的单元格列表。
-
-    Returns:
-        bool: 是否为分隔行。
-    """
-    return bool(cells) and all(
-        set(c.strip()) <= {"-", ":", " "} and "-" in c for c in cells
-    )
+    return bool(cells) and all(set(c.strip()) <= {"-", ":", " "} and "-" in c for c in cells)
 
 
 def export_featurelist_md(title: str, items: list[dict]) -> str:
-    """将功能清单导出为 Markdown 表格格式的字符串。
-
-    Args:
-        title (str): 文档标题。
-        items (list[dict]): 功能点字典列表。
-
-    Returns:
-        str: Markdown 表格文本。
-    """
     labels = [label for _, label in COLUMNS]
     lines = [
         f"# {title or '功能清单'}",
@@ -135,19 +86,6 @@ def export_featurelist_md(title: str, items: list[dict]) -> str:
 
 
 def parse_featurelist_md(data: bytes) -> list[dict]:
-    """从 Markdown 表格中解析功能清单。
-
-    自动识别编码（UTF-8-BOM、UTF-8、GBK），按表头列名匹配字段。
-
-    Args:
-        data (bytes): Markdown 文件的原始字节数据。
-
-    Returns:
-        list[dict]: 功能点字典列表。
-
-    Raises:
-        DocumentParseError: 编码无法识别、缺少表格或缺少「功能点」列时抛出。
-    """
     for encoding in ("utf-8-sig", "utf-8", "gbk"):
         try:
             text = data.decode(encoding)
@@ -162,11 +100,7 @@ def parse_featurelist_md(data: bytes) -> list[dict]:
         raise DocumentParseError("未找到 Markdown 表格，请使用「导出清单」得到的格式")
 
     header_cells = [c.strip() for c in _split_md_row(table_lines[0])]
-    col_index = {
-        HEADER_TO_FIELD[name]: i
-        for i, name in enumerate(header_cells)
-        if name in HEADER_TO_FIELD
-    }
+    col_index = {HEADER_TO_FIELD[name]: i for i, name in enumerate(header_cells) if name in HEADER_TO_FIELD}
     if "feature" not in col_index:
         raise DocumentParseError("FeatureList 缺少「功能点」列")
 
@@ -194,17 +128,7 @@ def parse_featurelist_md(data: bytes) -> list[dict]:
 
 # ---------------------------------------------------------------- Excel
 
-
 def export_featurelist_xlsx(title: str, items: list[dict]) -> bytes:
-    """将功能清单导出为 .xlsx 格式的字节数据。
-
-    Args:
-        title (str): 工作表名称。
-        items (list[dict]): 功能点字典列表。
-
-    Returns:
-        bytes: .xlsx 文件的字节数据。
-    """
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -234,17 +158,6 @@ def export_featurelist_xlsx(title: str, items: list[dict]) -> bytes:
 
 
 def parse_featurelist_xlsx(data: bytes) -> list[dict]:
-    """从 .xlsx 文件中解析功能清单，按表头列名匹配字段。
-
-    Args:
-        data (bytes): .xlsx 文件的原始字节数据。
-
-    Returns:
-        list[dict]: 功能点字典列表。
-
-    Raises:
-        DocumentParseError: 文件格式错误、为空或缺少「功能点」列时抛出。
-    """
     from openpyxl import load_workbook
 
     try:
@@ -258,17 +171,12 @@ def parse_featurelist_xlsx(data: bytes) -> list[dict]:
         raise DocumentParseError("FeatureList 为空")
 
     header = [str(h).strip() if h is not None else "" for h in rows[0]]
-    col_index = {
-        HEADER_TO_FIELD[name]: i
-        for i, name in enumerate(header)
-        if name in HEADER_TO_FIELD
-    }
+    col_index = {HEADER_TO_FIELD[name]: i for i, name in enumerate(header) if name in HEADER_TO_FIELD}
     if "feature" not in col_index:
         raise DocumentParseError("FeatureList 缺少「功能点」列")
 
     items: list[dict] = []
     for row in rows[1:]:
-
         def cell(field: str) -> str:
             idx = col_index.get(field)
             if idx is None or idx >= len(row):
@@ -288,16 +196,7 @@ def parse_featurelist_xlsx(data: bytes) -> list[dict]:
 
 # ---------------------------------------------------------------- shared / dispatch
 
-
 def _build_item(cell) -> dict:
-    """用 cell 取值函数构建标准化的功能点字典，自动校验优先级合法性。
-
-    Args:
-        cell (callable): 以字段名为参数的取值函数。
-
-    Returns:
-        dict: 包含 module、feature、description、acceptance_criteria、constraints、priority 的字典。
-    """
     priority = cell("priority") or "P1"
     if priority not in ("P0", "P1", "P2"):
         priority = "P1"
@@ -311,19 +210,8 @@ def _build_item(cell) -> dict:
     }
 
 
-def export_featurelist(
-    title: str, items: list[dict], fmt: str = "xlsx"
-) -> tuple[bytes, str, str]:
-    """导出功能清单的统一入口，根据格式返回字节内容、媒体类型和文件扩展名。
-
-    Args:
-        title (str): 文档标题。
-        items (list[dict]): 功能点字典列表。
-        fmt (str, optional): 导出格式，支持 "xlsx" 和 "md"。默认为 "xlsx"。
-
-    Returns:
-        tuple[bytes, str, str]: (字节内容, MIME 类型, 文件扩展名)。
-    """
+def export_featurelist(title: str, items: list[dict], fmt: str = "xlsx") -> tuple[bytes, str, str]:
+    """返回 (内容字节, media_type, 文件扩展名)。"""
     if fmt == "md":
         text = export_featurelist_md(title, items)
         return text.encode("utf-8"), MEDIA_MD, "md"
@@ -332,18 +220,6 @@ def export_featurelist(
 
 
 def parse_featurelist(filename: str, data: bytes) -> list[dict]:
-    """根据文件扩展名自动分发到对应的解析器，解析功能清单。
-
-    Args:
-        filename (str): 文件名，用于判断格式。
-        data (bytes): 文件原始字节数据。
-
-    Returns:
-        list[dict]: 功能点字典列表。
-
-    Raises:
-        DocumentParseError: 不支持的格式时抛出。
-    """
     name = (filename or "").lower()
     if name.endswith(".xlsx"):
         return parse_featurelist_xlsx(data)
