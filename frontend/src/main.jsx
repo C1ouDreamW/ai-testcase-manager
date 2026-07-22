@@ -7,8 +7,8 @@ import './styles/global.css';
 
 const theme = {
   token: {
-    colorPrimary: '#2563EB',
-    colorInfo: '#2563EB',
+    colorPrimary: '#4F46E5',
+    colorInfo: '#4F46E5',
     colorSuccess: '#16A34A',
     colorWarning: '#D97706',
     colorError: '#DC2626',
@@ -17,7 +17,7 @@ const theme = {
   },
   components: {
     Button: {
-      primaryShadow: '0 2px 6px rgba(37, 99, 235, 0.2)',
+      primaryShadow: '0 2px 6px rgba(79, 70, 229, 0.22)',
     },
     Card: {
       paddingLG: 20,

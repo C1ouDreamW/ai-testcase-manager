@@ -9,10 +9,13 @@ _NO_PROXY = {"http": None, "https": None}
 
 
 class ApiClient:
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, username: str | None = None, password: str | None = None):
         self.base_url = base_url.rstrip("/")
         self.session = requests.Session()
         self.session.trust_env = False
+        self.token: str | None = None
+        if username is not None and password is not None:
+            self.login(username, password)
 
     # ---- 基础 HTTP ----
     def request(self, method: str, path: str, **kwargs) -> requests.Response:
@@ -34,6 +37,13 @@ class ApiClient:
 
     def delete(self, path: str, **kwargs) -> requests.Response:
         return self.request("DELETE", path, **kwargs)
+
+    def login(self, username: str, password: str) -> str:
+        response = self.post("/auth/login", json={"username": username, "password": password})
+        response.raise_for_status()
+        self.token = response.json()["token"]
+        self.session.headers["Authorization"] = f"Bearer {self.token}"
+        return self.token
 
     # ---- 业务流封装 ----
     def create_project(self, name: str, description: str = "") -> dict:
@@ -99,7 +109,7 @@ class ApiClient:
         deadline = time.time() + timeout
         while time.time() < deadline:
             task = self.get(f"/projects/{project_id}/generations/{task['id']}").json()
-            if task["status"] in ("completed", "failed"):
+            if task["status"] in ("completed", "failed", "paused"):
                 return task
             time.sleep(0.3)
         raise TimeoutError(f"生成任务 {task['id']} 在 {timeout}s 内未完成，最后状态: {task['status']}")

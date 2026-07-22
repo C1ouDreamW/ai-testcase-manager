@@ -6,8 +6,8 @@ from api.client import ApiClient
 
 
 @pytest.fixture(scope="session")
-def client(api_base_url) -> ApiClient:
-    return ApiClient(api_base_url)
+def client(api_base_url, auth_credentials) -> ApiClient:
+    return ApiClient(api_base_url, *auth_credentials)
 
 
 @pytest.fixture

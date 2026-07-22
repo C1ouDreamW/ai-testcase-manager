@@ -20,6 +20,8 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = ROOT_DIR / "backend"
 API_PORT = int(os.environ.get("AITC_TEST_API_PORT", "8100"))
 IS_WINDOWS = sys.platform == "win32"
+TEST_AUTH_USERNAME = "autotest-admin"
+TEST_AUTH_PASSWORD = "autotest-only-password"
 
 
 def _venv_dir() -> Path:
@@ -76,6 +78,8 @@ def api_base_url():
         "EMBEDDING_API_KEY": "",
         "EMBEDDING_BASE_URL": "",
         "EMBEDDING_MODEL": "",
+        "AUTH_USERNAME": TEST_AUTH_USERNAME,
+        "AUTH_PASSWORD": TEST_AUTH_PASSWORD,
     }
     process = subprocess.Popen(
         [str(backend_uvicorn()), "app.main:app", "--port", str(API_PORT)],
@@ -95,3 +99,8 @@ def api_base_url():
         except subprocess.TimeoutExpired:
             process.kill()
         shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@pytest.fixture(scope="session")
+def auth_credentials():
+    return TEST_AUTH_USERNAME, TEST_AUTH_PASSWORD

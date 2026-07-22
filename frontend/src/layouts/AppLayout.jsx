@@ -4,28 +4,273 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   FolderOutlined,
+  LogoutOutlined,
+  MenuOutlined,
   SettingOutlined,
-  ThunderboltFilled,
+  SwapOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
-import { Spin } from 'antd';
+import {
+  Badge, ConfigProvider, Drawer, Dropdown, Spin,
+} from 'antd';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Outlet, useLocation, useParams } from 'react-router-dom';
-import { getHomeOverview, getProject } from '../services/api';
-import { getProjectWorkAction } from '../utils/projectAction';
+import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { clearAuth, getAuth, getHomeOverview, getProject, getSettings, logoutRequest } from '../services/api';
+
+const GLOBAL_NAV = [
+  { key: 'home', path: '/', label: '全部项目', icon: AppstoreOutlined, exact: true },
+  { key: 'testcases', path: '/testcases', label: '全部用例', icon: DatabaseOutlined },
+  { key: 'knowledge', path: '/knowledge', label: '知识库', icon: BookOutlined },
+  { key: 'evaluation', path: '/evaluation', label: 'AI 评测', icon: ExperimentOutlined },
+];
 
 const PROJECT_NAV = [
-  { key: 'overview', suffix: '', label: '项目概览', icon: AppstoreOutlined },
+  { key: 'overview', suffix: '', label: '概览', icon: AppstoreOutlined },
   { key: 'generate', suffix: '/generate', label: 'AI 生成', icon: ThunderboltOutlined },
+  { key: 'testcases', suffix: '/testcases', label: '项目用例', icon: DatabaseOutlined },
 ];
+
+const WORKSPACE_THEME = {
+  token: {
+    colorPrimary: '#5798F5',
+    colorPrimaryHover: '#4387E8',
+    colorPrimaryActive: '#3276D3',
+    colorInfo: '#5798F5',
+    colorLink: '#5798F5',
+    colorBgLayout: '#F5F7FA',
+    colorBorder: '#E1E6ED',
+    colorText: '#1F2329',
+    colorTextSecondary: '#646A73',
+    borderRadius: 6,
+    borderRadiusLG: 8,
+  },
+  components: {
+    Button: {
+      primaryShadow: 'none',
+      defaultShadow: 'none',
+      borderRadius: 6,
+    },
+    Card: {
+      borderRadiusLG: 8,
+    },
+    Table: {
+      headerBg: '#F5F7FA',
+      headerColor: '#4E5969',
+      borderColor: '#E1E6ED',
+    },
+  },
+};
+
+function SidebarContent({
+  projectId,
+  project,
+  loadingProject,
+  overview,
+  loadingOverview,
+  username,
+  userInitial,
+  isAdmin,
+  needsSetup,
+  onLogout,
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const basePath = projectId ? `/projects/${projectId}` : '';
+  const recentProjects = (overview?.projects || []).slice(0, 8);
+  const currentProjectOverview = recentProjects.find((p) => String(p.id) === String(projectId));
+  const switcherProjects = currentProjectOverview || !project
+    ? recentProjects
+    : [project, ...recentProjects].slice(0, 8);
+
+  const switcherItems = {
+    items: [
+      {
+        type: 'group',
+        label: '切换项目',
+        children: switcherProjects.map((p) => {
+          const isCurrent = String(p.id) === String(projectId);
+          return {
+            key: String(p.id),
+            label: (
+              <span className="project-switch-menu-item">
+                <span className="project-switch-menu-name">{p.name}</span>
+              </span>
+            ),
+            onClick: () => {
+              if (!isCurrent) navigate(`/projects/${p.id}`);
+            },
+          };
+        }),
+      },
+      { type: 'divider' },
+      {
+        key: 'all-projects',
+        icon: <AppstoreOutlined />,
+        label: '全部项目',
+        onClick: () => navigate('/'),
+      },
+    ],
+    selectable: true,
+    selectedKeys: [String(projectId)],
+  };
+
+  const userMenu = {
+    items: [
+      {
+        key: 'settings',
+        icon: <SettingOutlined />,
+        label: (
+          <span>
+            个人设置
+            {needsSetup && <Badge dot offset={[6, -2]} />}
+          </span>
+        ),
+        onClick: () => navigate('/settings'),
+      },
+      { type: 'divider' },
+      {
+        key: 'logout',
+        icon: <LogoutOutlined />,
+        label: '退出登录',
+        danger: true,
+        onClick: onLogout,
+      },
+    ],
+  };
+
+  return (
+    <>
+      <Link to="/" className="app-brand">
+        <div className="app-brand-icon" aria-hidden="true">AI</div>
+        <span className="app-brand-title">AI用例管理平台</span>
+      </Link>
+
+      <nav className="sidebar-nav">
+        {GLOBAL_NAV.map(({ key, path, label, icon: Icon, exact }) => {
+          const active = exact ? location.pathname === path : location.pathname.startsWith(path);
+          return (
+            <Link key={key} to={path} className={`sidebar-link${active ? ' active' : ''}`}>
+              <Icon />
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {projectId ? (
+        <>
+          <div className="sidebar-divider" />
+          <div className="sidebar-project">
+            <div className="sidebar-project-label">当前项目</div>
+            <Dropdown
+              menu={switcherItems}
+              trigger={['click']}
+              placement="bottomLeft"
+              overlayClassName="project-switch-dropdown"
+              onOpenChange={setProjectMenuOpen}
+            >
+              <button
+                type="button"
+                className={`sidebar-project-switcher${projectMenuOpen ? ' open' : ''}`}
+                aria-label="切换项目"
+                aria-haspopup="menu"
+                aria-expanded={projectMenuOpen}
+              >
+                <span className="sidebar-project-name">
+                  {loadingProject ? <Spin size="small" /> : project?.name || '加载中...'}
+                </span>
+                <SwapOutlined className="sidebar-project-switch-icon" />
+              </button>
+            </Dropdown>
+          </div>
+          <nav className="sidebar-nav">
+            {PROJECT_NAV.map(({ key, suffix, label, icon: Icon }) => {
+              const path = `${basePath}${suffix}`;
+              const active = suffix
+                ? location.pathname.startsWith(path)
+                : location.pathname === path;
+              return (
+                <Link
+                  key={key}
+                  to={path}
+                  className={`sidebar-link${active ? ' active' : ''}`}
+                >
+                  <Icon />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+        </>
+      ) : (
+        <>
+          <div className="sidebar-divider" />
+          <div className="sidebar-section-label">最近项目</div>
+          {loadingOverview ? (
+            <div className="sidebar-loading"><Spin size="small" /></div>
+          ) : recentProjects.length === 0 ? (
+            <div className="sidebar-empty">暂无项目，请先创建</div>
+          ) : (
+            <nav className="sidebar-nav sidebar-nav-compact">
+              {recentProjects.map((p) => {
+                const active = location.pathname.startsWith(`/projects/${p.id}`);
+                return (
+                  <Link
+                    key={p.id}
+                    to={`/projects/${p.id}`}
+                    className={`sidebar-link sidebar-link-compact${active ? ' active' : ''}`}
+                    title={p.name}
+                  >
+                    <FolderOutlined />
+                    <span className="sidebar-link-text">{p.name}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          )}
+        </>
+      )}
+
+      <div className="sidebar-footer">
+        <Dropdown menu={userMenu} trigger={['click']} placement="topLeft">
+          <button type="button" className="sidebar-user" title={username}>
+            <Badge dot={needsSetup} offset={[-4, 4]}>
+              <span className="sidebar-user-avatar" aria-hidden="true">{userInitial}</span>
+            </Badge>
+            <span className="sidebar-user-info">
+              <span className="sidebar-user-name">{username}</span>
+              <span className="sidebar-user-role">
+                {needsSetup ? '模型未配置' : isAdmin ? '管理员' : '个人工作区'}
+              </span>
+            </span>
+          </button>
+        </Dropdown>
+      </div>
+    </>
+  );
+}
 
 export default function AppLayout() {
   const { projectId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
+  const auth = getAuth();
+  const username = auth?.username || '当前用户';
+  const userInitial = username.trim().slice(0, 1).toUpperCase() || 'U';
+
   const [project, setProject] = useState(null);
   const [overview, setOverview] = useState(null);
   const [loadingProject, setLoadingProject] = useState(false);
   const [loadingOverview, setLoadingOverview] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const handleLogout = () => {
+    logoutRequest(getAuth()?.token);
+    clearAuth();
+    navigate('/login', { replace: true });
+  };
 
   useEffect(() => {
     setLoadingOverview(true);
@@ -33,6 +278,13 @@ export default function AppLayout() {
       .then(setOverview)
       .catch(() => setOverview(null))
       .finally(() => setLoadingOverview(false));
+  }, [location.pathname]);
+
+  // API Key 未配置时在头像和设置入口上显示红点，把配置缺失提前暴露出来
+  useEffect(() => {
+    getSettings()
+      .then((data) => setNeedsSetup(!data.llm_api_key_set && !data.llm_mock_mode))
+      .catch(() => setNeedsSetup(false));
   }, [location.pathname]);
 
   useEffect(() => {
@@ -47,139 +299,76 @@ export default function AppLayout() {
       .finally(() => setLoadingProject(false));
   }, [projectId]);
 
-  const basePath = projectId ? `/projects/${projectId}` : '';
-  const isHome = location.pathname === '/';
-  const isSettings = location.pathname === '/settings';
-  const isTestcases = location.pathname === '/testcases';
-  const isKnowledge = location.pathname === '/knowledge';
-  const isEvaluation = location.pathname === '/evaluation';
+  // 路由变化时收起移动端抽屉
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
 
-  const recentProjects = useMemo(() => (overview?.projects || []).slice(0, 8), [overview]);
-
-  const continueProject = useMemo(() => {
-    if (!overview?.latest_active_project_id) return recentProjects[0] || null;
-    return recentProjects.find((p) => p.id === overview.latest_active_project_id) || recentProjects[0] || null;
-  }, [overview, recentProjects]);
-
-  const continueAction = continueProject ? getProjectWorkAction(continueProject) : null;
+  const sidebarProps = useMemo(() => ({
+    projectId,
+    project,
+    loadingProject,
+    overview,
+    loadingOverview,
+    username,
+    userInitial,
+    isAdmin: !!auth?.is_admin,
+    needsSetup,
+    onLogout: handleLogout,
+  }), [projectId, project, loadingProject, overview, loadingOverview, username, userInitial, auth?.is_admin, needsSetup]);
 
   return (
     <div className="app-layout">
+      <header className="mobile-topbar">
+        <button
+          type="button"
+          className="mobile-topbar-menu"
+          aria-label="打开导航菜单"
+          onClick={() => setDrawerOpen(true)}
+        >
+          <MenuOutlined />
+        </button>
+        <Link to="/" className="mobile-topbar-brand">
+          <span className="app-brand-icon" aria-hidden="true">AI</span>
+          <span className="mobile-topbar-title">
+            {projectId && project ? project.name : 'AI用例管理平台'}
+          </span>
+        </Link>
+        <Badge dot={needsSetup} offset={[-4, 4]}>
+          <button
+            type="button"
+            className="mobile-topbar-avatar"
+            aria-label="打开导航菜单"
+            onClick={() => setDrawerOpen(true)}
+          >
+            {userInitial}
+          </button>
+        </Badge>
+      </header>
+
+      <Drawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        placement="left"
+        closable={false}
+        className="mobile-nav-drawer"
+        styles={{ body: { padding: 0 }, wrapper: { width: 280 } }}
+      >
+        <div className="app-sidebar app-sidebar-drawer">
+          <SidebarContent {...sidebarProps} />
+        </div>
+      </Drawer>
+
       <div className="app-body">
         <aside className="app-sidebar">
-          <Link to="/" className="app-brand">
-            <div className="app-brand-icon"><ThunderboltFilled /></div>
-            <span className="app-brand-copy">
-              <span className="app-brand-title">AI用例管理平台</span>
-              <span className="app-brand-subtitle">测试智能工作台</span>
-            </span>
-          </Link>
-
-          <div className="sidebar-section-label sidebar-section-label-main">工作台</div>
-          <nav className="sidebar-nav">
-            <Link to="/" className={`sidebar-link${isHome ? ' active' : ''}`}>
-              <AppstoreOutlined />
-              我的项目
-            </Link>
-            <Link to="/testcases" className={`sidebar-link${isTestcases ? ' active' : ''}`}>
-              <DatabaseOutlined />
-              测试用例
-            </Link>
-            <Link to="/knowledge" className={`sidebar-link${isKnowledge ? ' active' : ''}`}>
-              <BookOutlined />
-              知识库
-            </Link>
-            <Link to="/evaluation" className={`sidebar-link${isEvaluation ? ' active' : ''}`}>
-              <ExperimentOutlined />
-              AI 评测
-            </Link>
-          </nav>
-
-          {!projectId && continueProject && continueAction && (
-            <>
-              <div className="sidebar-divider" />
-              <Link to={continueAction.path} className="sidebar-continue-link">
-                <span className="sidebar-continue-icon"><ThunderboltOutlined /></span>
-                <span className="sidebar-continue-content">
-                  <span className="sidebar-continue-eyebrow">继续上次工作</span>
-                  <span className="sidebar-continue-text">{continueProject.name}</span>
-                </span>
-                <span className="sidebar-continue-arrow" aria-hidden="true">›</span>
-              </Link>
-            </>
-          )}
-
-          {projectId ? (
-            <>
-              <div className="sidebar-divider" />
-              <div className="sidebar-section-label">当前项目</div>
-              <div className="sidebar-project">
-                <span className="sidebar-project-icon"><FolderOutlined /></span>
-                <span className="sidebar-project-copy">
-                  <span className="sidebar-project-meta">正在处理</span>
-                  <span className="sidebar-project-name">
-                    {loadingProject ? <Spin size="small" /> : project?.name || '加载中...'}
-                  </span>
-                </span>
-              </div>
-              <nav className="sidebar-nav">
-                {PROJECT_NAV.map(({ key, suffix, label, icon: Icon }) => {
-                  const path = `${basePath}${suffix}`;
-                  const active = location.pathname === path
-                    || (suffix && location.pathname.startsWith(path));
-                  return (
-                    <Link
-                      key={key}
-                      to={path}
-                      className={`sidebar-link${active ? ' active' : ''}`}
-                    >
-                      <Icon />
-                      {label}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </>
-          ) : (
-            <>
-              <div className="sidebar-divider" />
-              <div className="sidebar-section-label">最近项目</div>
-              {loadingOverview ? (
-                <div className="sidebar-loading"><Spin size="small" /></div>
-              ) : recentProjects.length === 0 ? (
-                <div className="sidebar-empty">暂无项目，请先创建</div>
-              ) : (
-                <nav className="sidebar-nav sidebar-nav-compact">
-                  {recentProjects.map((p) => {
-                    const active = location.pathname.startsWith(`/projects/${p.id}`);
-                    return (
-                      <Link
-                        key={p.id}
-                        to={`/projects/${p.id}`}
-                        className={`sidebar-link sidebar-link-compact${active ? ' active' : ''}`}
-                        title={p.name}
-                      >
-                        <FolderOutlined />
-                        <span className="sidebar-link-text">{p.name}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              )}
-            </>
-          )}
-
-          <div className="sidebar-footer">
-            <Link to="/settings" className={`sidebar-link${isSettings ? ' active' : ''}`}>
-              <SettingOutlined />
-              设置
-            </Link>
-          </div>
+          <SidebarContent {...sidebarProps} />
         </aside>
 
         <main className="app-content">
           <div className="app-content-inner">
-            <Outlet />
+            <ConfigProvider theme={WORKSPACE_THEME}>
+              <Outlet />
+            </ConfigProvider>
           </div>
         </main>
       </div>
