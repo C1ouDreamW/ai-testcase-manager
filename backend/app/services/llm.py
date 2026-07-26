@@ -1,47 +1,26 @@
 import contextvars
-import json
-from typing import Any
 
 import httpx
 
-from app.config import settings
+from app.services.model_endpoint_security import ModelEndpointError, validate_model_base_url
+from app.services.settings_service import RuntimeModelConfig
 
-# 按异步上下文累计 token 用量：run_generation 开始时创建计数器，
+# 按异步上下文累计 token 用量：LangGraph 生成工作流开始时创建计数器，
 # 期间所有 LLM 调用（生成 + 专项 + Judge）都会累加到同一个计数器。
-_token_counter: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
-    "token_counter", default=None
-)
+_token_counter: contextvars.ContextVar[dict | None] = contextvars.ContextVar("token_counter", default=None)
 
 
 def start_token_tracking() -> dict:
-    """启动 Token 用量跟踪，为当前异步上下文创建计数器。
-
-    Returns:
-        dict: 包含 prompt_tokens 和 completion_tokens 初始值的计数器字典。
-    """
     counter = {"prompt_tokens": 0, "completion_tokens": 0}
     _token_counter.set(counter)
     return counter
 
 
 def total_tokens(counter: dict) -> int:
-    """计算提示词和完成词的总 Token 数。
-
-    Args:
-        counter (dict): Token 计数器字典，包含 prompt_tokens 和 completion_tokens。
-
-    Returns:
-        int: 总 Token 数量。
-    """
     return counter.get("prompt_tokens", 0) + counter.get("completion_tokens", 0)
 
 
 def _record_usage(usage: dict | None) -> None:
-    """将一次 LLM 调用的用量记录到当前上下文的 Token 计数器中。
-
-    Args:
-        usage (dict | None): LLM 响应中的 usage 字段。
-    """
     counter = _token_counter.get()
     if counter is None or not isinstance(usage, dict):
         return
@@ -49,148 +28,286 @@ def _record_usage(usage: dict | None) -> None:
     counter["completion_tokens"] += usage.get("completion_tokens", 0) or 0
 
 
-def _resolve_llm(use_eval_model: bool) -> tuple[str, str, str]:
-    """根据用途解析 LLM 连接参数，评测模型配置留空的项回退到生成模型配置。
+def record_token_usage(usage: dict | None) -> None:
+    """记录 LangChain / OpenAI 两种口径的 token 用量。
 
-    Args:
-        use_eval_model (bool): 是否使用评测专用模型。
-
-    Returns:
-        tuple[str, str, str]: (base_url, api_key, model) 三元组。
+    LangChain ``AIMessage.usage_metadata`` 使用 input/output_tokens，原始
+    OpenAI 兼容响应使用 prompt/completion_tokens。统一写入现有任务计数器，
+    保持生成记录与离线评测中的 tokens_used 口径不变。
     """
+    if not isinstance(usage, dict):
+        return
+    normalized = {
+        "prompt_tokens": usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0,
+        "completion_tokens": usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0,
+    }
+    _record_usage(normalized)
+
+
+def _resolve_chat_settings(config: RuntimeModelConfig, use_eval_model: bool) -> tuple[str, str, str]:
+    """返回 (base_url, api_key, model)。评测三项全部留空时整体复用生成配置。"""
     if use_eval_model:
-        return (
-            settings.eval_llm_base_url or settings.llm_base_url,
-            settings.eval_llm_api_key or settings.llm_api_key,
-            settings.eval_llm_model or settings.llm_model,
-        )
-    return settings.llm_base_url, settings.llm_api_key, settings.llm_model
+        eval_config = (config.eval_llm_base_url, config.eval_llm_api_key, config.eval_llm_model)
+        if any(eval_config):
+            return eval_config
+    return config.llm_base_url, config.llm_api_key, config.llm_model
 
 
 class LLMCallError(RuntimeError):
     """LLM 调用失败，message 为面向用户的中文提示。"""
 
 
+def _extract_provider_detail(exc: Exception) -> str:
+    """从 httpx / OpenAI SDK 异常中提取厂商返回的可读错误信息。"""
+    response = None
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = exc.response
+    else:
+        response = getattr(exc, "response", None)
+        if response is None and getattr(exc, "body", None) is not None:
+            body = exc.body
+            if isinstance(body, dict):
+                for key in ("message", "msg", "error"):
+                    value = body.get(key)
+                    if isinstance(value, dict):
+                        value = value.get("message") or value.get("msg")
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()[:200]
+            elif isinstance(body, str) and body.strip():
+                return body.strip()[:200]
+
+    if response is None:
+        text = str(exc).strip()
+        return text[:200] if text else ""
+
+    try:
+        data = response.json()
+    except Exception:
+        text = (getattr(response, "text", None) or "").strip()
+        return text[:200] if text else ""
+
+    if isinstance(data, dict):
+        err = data.get("error")
+        if isinstance(err, dict):
+            msg = err.get("message") or err.get("msg")
+            if isinstance(msg, str) and msg.strip():
+                return msg.strip()[:200]
+        for key in ("message", "msg"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()[:200]
+    return ""
+
+
 def _friendly_error(exc: Exception, kind: str) -> LLMCallError:
-    """将 HTTP 异常转换为面向用户的中文友好错误提示。
-
-    Args:
-        exc (Exception): 原始异常对象。
-        kind (str): 模型类型描述，如"生成模型"、"评测模型"。
-
-    Returns:
-        LLMCallError: 包含中文提示的 LLM 调用错误。
-    """
+    code = None
     if isinstance(exc, httpx.HTTPStatusError):
         code = exc.response.status_code
-        if code in (401, 403):
+    else:
+        code = getattr(exc, "status_code", None)
+        response = getattr(exc, "response", None)
+        if code is None and response is not None:
+            code = getattr(response, "status_code", None)
+    detail = _extract_provider_detail(exc)
+    suffix = f"：{detail}" if detail else ""
+    if code is not None:
+        if code == 401:
+            return LLMCallError(f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试{suffix}")
+        if code == 403:
             return LLMCallError(
-                f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试"
+                f"{kind}无权限或余额不足（HTTP 403），请确认 Key、模型是否已开通及账户余额{suffix}"
             )
         if code == 429:
-            return LLMCallError(f"{kind}调用触发限流（429），请稍后重试")
+            return LLMCallError(f"{kind}调用触发限流（429），请稍后重试{suffix}")
         if code == 404:
-            return LLMCallError(
-                f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置"
-            )
-        return LLMCallError(f"{kind}调用失败（HTTP {code}），请检查「设置」页配置")
+            return LLMCallError(f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置{suffix}")
+        return LLMCallError(f"{kind}调用失败（HTTP {code}），请检查「设置」页配置{suffix}")
     return LLMCallError(f"无法连接{kind}服务，请检查接口地址与网络：{exc}")
 
 
-async def chat_completion(
-    system_prompt: str, user_prompt: str, *, use_eval_model: bool = False
-) -> str:
-    """异步发送 Chat Completions 请求到 LLM 服务。
+async def rerank_documents(
+    query: str,
+    documents: list[str],
+    config: RuntimeModelConfig,
+    top_n: int | None = None,
+) -> list[tuple[int, float]]:
+    """调用 Rerank 接口对候选文档精排，返回 [(原始下标, relevance_score)]，按分数降序。
 
-    mock 模式下直接返回空字符串。
-
-    Args:
-        system_prompt (str): 系统提示词。
-        user_prompt (str): 用户提示词。
-        use_eval_model (bool, optional): 是否使用评测专用模型。默认为 False。
-
-    Returns:
-        str: LLM 返回的文本内容。
-
-    Raises:
-        LLMCallError: LLM 调用失败时抛出，包含中文友好提示。
+    请求体为 Jina / SiliconFlow / Cohere 兼容格式：{model, query, documents, top_n}。
+    未配置 Rerank 模型时抛出 RuntimeError，调用方应提前用 config.rerank_configured 判断。
     """
-    if settings.use_mock_llm:
-        return ""
+    if not config.rerank_configured:
+        raise RuntimeError("未配置 Rerank 模型")
+    base_url = validate_model_base_url(config.rerank_base_url)
 
-    kind = "评测模型" if use_eval_model else "生成模型"
-    base_url, api_key, model = _resolve_llm(use_eval_model)
+    payload: dict = {
+        "model": config.rerank_model,
+        "query": query,
+        "documents": documents,
+        "return_documents": False,
+    }
+    if top_n is not None:
+        payload["top_n"] = top_n
+
     try:
-        async with httpx.AsyncClient(timeout=120.0, trust_env=False) as client:
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
             response = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
+                f"{base_url.rstrip('/')}/rerank",
+                headers={"Authorization": f"Bearer {config.rerank_api_key}"},
+                json=payload,
+            )
+            response.raise_for_status()
+            data = response.json()
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        raise _friendly_error(exc, "Rerank 模型") from exc
+
+    results = data.get("results") or []
+    ranked = [
+        (int(item["index"]), float(item.get("relevance_score", 0.0)))
+        for item in results
+        if isinstance(item, dict) and "index" in item
+    ]
+    ranked.sort(key=lambda pair: pair[1], reverse=True)
+    return ranked
+
+
+async def test_model_connection(config: RuntimeModelConfig, target: str) -> dict:
+    """对指定模型配置发起一次最小化调用，验证地址、模型与 Key 是否可用。
+
+    target: generation | eval | vision | embedding | rerank。返回 {ok, message, model, base_url}。
+    """
+    if target == "vision":
+        base_url = config.vision_base_url
+        api_key = config.vision_api_key
+        model = config.vision_model
+        kind = "视觉模型"
+    elif target == "embedding":
+        base_url = config.embedding_base_url
+        api_key = config.embedding_api_key
+        model = config.embedding_model
+        kind = "Embedding 模型"
+    elif target == "rerank":
+        if not any((config.rerank_base_url, config.rerank_api_key, config.rerank_model)):
+            return {
+                "ok": True,
+                "message": "Rerank 模型未配置，知识检索将只做混合检索融合排序",
+                "model": "",
+                "base_url": "",
+            }
+        base_url = config.rerank_base_url
+        api_key = config.rerank_api_key
+        model = config.rerank_model
+        kind = "Rerank 模型"
+    else:
+        use_eval = target == "eval"
+        kind = "评测模型" if use_eval else "生成模型"
+        if use_eval and not any(
+            (config.eval_llm_base_url, config.eval_llm_api_key, config.eval_llm_model)
+        ):
+            return {
+                "ok": True,
+                "message": "评测模型未单独配置，将复用生成模型",
+                "model": config.llm_model,
+                "base_url": config.llm_base_url,
+            }
+        base_url, api_key, model = _resolve_chat_settings(config, use_eval)
+
+    if target == "generation" and config.use_mock_llm:
+        return {
+            "ok": True,
+            "message": "当前为 Mock 模式，生成不会调用真实接口",
+            "model": model or "",
+            "base_url": base_url or "",
+        }
+
+    if not (base_url and api_key and model):
+        return {
+            "ok": False,
+            "message": f"{kind}的 API 地址、模型和 Key 尚未配置完整",
+            "model": model or "",
+            "base_url": base_url or "",
+        }
+
+    api_key = api_key.strip()
+    if api_key.lower().startswith("bearer "):
+        api_key = api_key[7:].strip()
+
+    try:
+        base_url = validate_model_base_url(base_url)
+    except ModelEndpointError as exc:
+        return {"ok": False, "message": str(exc), "model": model, "base_url": base_url}
+
+    if target == "embedding":
+        from app.ai.embedding_factory import embedding_context
+
+        try:
+            async with embedding_context(config) as embeddings:
+                vector = await embeddings.aembed_query("连通性测试")
+            if not vector:
+                raise RuntimeError("Embedding 模型返回了空向量")
+        except Exception as exc:
+            return {
+                "ok": False,
+                "message": str(_friendly_error(exc, kind)),
+                "model": model,
+                "base_url": base_url,
+            }
+        return {"ok": True, "message": "连接成功", "model": model, "base_url": base_url}
+    if target == "rerank":
+        path = "/rerank"
+        payload = {
+            "model": model,
+            "query": "连通性测试",
+            "documents": ["连通性测试文档"],
+            "top_n": 1,
+            "return_documents": False,
+        }
+    elif target == "vision":
+        path = "/chat/completions"
+        payload = {
+            "model": model,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "请回答图片中是否只有一个像素，只需回答是或否。"},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": (
+                                "data:image/png;base64,"
+                                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0"
+                                "lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                            )
+                        },
+                    },
+                ],
+            }],
+            "max_tokens": 8,
+            "temperature": 0,
+        }
+    else:
+        path = "/chat/completions"
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": "ping"}],
+            "max_tokens": 4,
+            "temperature": 0,
+        }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, trust_env=False) as client:
+            response = await client.post(
+                f"{base_url.rstrip('/')}{path}",
                 headers={"Authorization": f"Bearer {api_key}"},
-                json={
-                    "model": model,
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                    "temperature": 0.3,
-                },
+                json=payload,
             )
             response.raise_for_status()
-            data = response.json()
     except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-        raise _friendly_error(exc, kind) from exc
-    _record_usage(data.get("usage"))
-    return data["choices"][0]["message"]["content"]
+        return {
+            "ok": False,
+            "message": str(_friendly_error(exc, kind)),
+            "model": model,
+            "base_url": base_url,
+        }
 
-
-async def embed_texts(texts: list[str]) -> list[list[float]]:
-    """调用 OpenAI 兼容的 Embeddings 接口批量向量化文本。
-
-    Args:
-        texts (list[str]): 待向量化的文本列表。
-
-    Returns:
-        list[list[float]]: 按输入顺序排列的向量列表。
-
-    Raises:
-        RuntimeError: 未配置 Embedding 模型时抛出。
-        LLMCallError: Embedding 调用失败时抛出。
-    """
-    if not (
-        settings.embedding_base_url
-        and settings.embedding_api_key
-        and settings.embedding_model
-    ):
-        raise RuntimeError(
-            "未配置 Embedding 模型，请先在设置中填写 Embedding API 地址、模型和 Key"
-        )
-
-    try:
-        async with httpx.AsyncClient(timeout=60.0, trust_env=False) as client:
-            response = await client.post(
-                f"{settings.embedding_base_url.rstrip('/')}/embeddings",
-                headers={"Authorization": f"Bearer {settings.embedding_api_key}"},
-                json={"model": settings.embedding_model, "input": texts},
-            )
-            response.raise_for_status()
-            data = response.json()
-    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
-        raise _friendly_error(exc, "Embedding 模型") from exc
-    # 按 index 排序，保证返回顺序与输入一致
-    items = sorted(data["data"], key=lambda d: d["index"])
-    return [item["embedding"] for item in items]
-
-
-def parse_json_response(text: str) -> Any:
-    """解析 LLM 返回的 JSON 文本，自动处理 markdown 代码块包裹。
-
-    Args:
-        text (str): LLM 返回的原始文本。
-
-    Returns:
-        Any: 解析后的 JSON 对象。
-    """
-    text = text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-    return json.loads(text)
+    return {"ok": True, "message": "连接成功", "model": model, "base_url": base_url}

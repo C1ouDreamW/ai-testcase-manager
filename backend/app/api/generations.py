@@ -5,10 +5,12 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 
-from app.database import SessionLocal, get_db
-from app.models.generation import GenerationTask
+from app.database import get_db
+from app.api.deps import require_project_access
+from app.models.generation import GeneratedCaseDraft, GenerationTask
 from app.models.project import Project
 from app.models.requirement import RequirementDocument, RequirementItem
+from app.models.testcase import TestCase
 from app.schemas import (
     DraftEdit,
     GeneratedCaseDraftOut,
@@ -23,48 +25,53 @@ from app.services.generation_service import (
     build_strategy_config_payload,
     parse_strategy_config,
     reject_drafts,
-    run_generation,
     run_judge_for_task,
 )
 from app.services.quality_checker import judge_summary
+from app.services.settings_service import get_project_runtime_config
 from app.services.testcase_export_service import export_testcases
-from app.models.generation import GeneratedCaseDraft
+from app.workflows.generation.control import claim_run_lease
+from app.workflows.generation.runner import resume_generation_workflow, run_generation_workflow
 
-router = APIRouter(prefix="/projects/{project_id}/generations", tags=["generations"])
+router = APIRouter(
+    prefix="/projects/{project_id}/generations",
+    tags=["generations"],
+    dependencies=[Depends(require_project_access)],
+)
 
 
-async def _run_generation_task(task_id: int):
-    """后台异步执行生成任务，使用独立数据库会话。
+async def _run_generation_task(task_id: int, lease: str | None = None):
+    await run_generation_workflow(task_id, lease=lease)
 
-    Args:
-        task_id (int): 生成任务 ID。
-    """
-    db = SessionLocal()
-    try:
-        task = db.query(GenerationTask).get(task_id)
-        if task:
-            await run_generation(db, task)
-    finally:
-        db.close()
+
+async def _resume_generation_task(task_id: int, lease: str | None = None):
+    await resume_generation_workflow(task_id, lease=lease)
+
+
+def _load_task(db: Session, project_id: int, task_id: int) -> GenerationTask:
+    task = (
+        db.query(GenerationTask)
+        .options(
+            joinedload(GenerationTask.drafts).joinedload(GeneratedCaseDraft.requirement_item),
+            joinedload(GenerationTask.quality_report),
+        )
+        .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
+        .first()
+    )
+    if not task:
+        raise HTTPException(404, "生成任务不存在")
+    return task
 
 
 @router.get("", response_model=list[GenerationTaskOut])
 def list_tasks(project_id: int, db: Session = Depends(get_db)):
-    """列出项目下所有生成任务，包含草稿和质检报告明细。
-
-    Args:
-        project_id (int): 项目 ID。
-        db (Session): 数据库会话。
-
-    Returns:
-        list[GenerationTaskOut]: 生成任务列表。
-    """
     return (
         db.query(GenerationTask)
         .options(
-            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+            joinedload(GenerationTask.drafts).joinedload(GeneratedCaseDraft.requirement_item),
+            joinedload(GenerationTask.quality_report),
         )
-        .filter(GenerationTask.project_id == project_id, ~GenerationTask.is_eval)
+        .filter(GenerationTask.project_id == project_id, GenerationTask.is_eval == False)
         .order_by(GenerationTask.created_at.desc())
         .all()
     )
@@ -77,29 +84,12 @@ async def create_task(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """创建测试用例生成任务，提交到后台异步执行。
-
-    Args:
-        project_id (int): 项目 ID。
-        data (GenerationTaskCreate): 生成任务创建请求体。
-        background_tasks (BackgroundTasks): FastAPI 后台任务管理器。
-        db (Session): 数据库会话。
-
-    Returns:
-        GenerationTaskOut: 新创建的生成任务。
-
-    Raises:
-        HTTPException: 项目不存在、需求文档不存在或功能点未确认时返回 400/404。
-    """
     if not db.query(Project).get(project_id):
         raise HTTPException(404, "项目不存在")
 
     doc = (
         db.query(RequirementDocument)
-        .filter(
-            RequirementDocument.id == data.document_id,
-            RequirementDocument.project_id == project_id,
-        )
+        .filter(RequirementDocument.id == data.document_id, RequirementDocument.project_id == project_id)
         .first()
     )
     if not doc:
@@ -111,34 +101,32 @@ async def create_task(
         project_id=project_id,
         document_id=data.document_id,
         strategy=data.strategy,
-        strategy_config=build_strategy_config_payload(data),
+        strategy_config=build_strategy_config_payload(
+            data,
+            get_project_runtime_config(db, project_id),
+        ),
         status="pending",
     )
     db.add(task)
     db.commit()
     db.refresh(task)
 
-    background_tasks.add_task(_run_generation_task, task.id)
+    try:
+        lease = claim_run_lease(db, task, resume=False)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    background_tasks.add_task(_run_generation_task, task.id, lease)
     return task
 
 
 @router.get("/summary", response_model=list[GenerationTaskSummaryOut])
 def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
-    """生成任务列表（轻量视图），仅返回统计信息，不返回草稿明细。
-
-    Args:
-        project_id (int): 项目 ID。
-        db (Session): 数据库会话。
-
-    Returns:
-        list[GenerationTaskSummaryOut]: 生成任务摘要列表。
-    """
+    """生成记录列表：只返回统计信息，不返回草稿明细。"""
     tasks = (
         db.query(GenerationTask)
-        .options(
-            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
-        )
-        .filter(GenerationTask.project_id == project_id, ~GenerationTask.is_eval)
+        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .filter(GenerationTask.project_id == project_id, GenerationTask.is_eval == False)
         .order_by(GenerationTask.created_at.desc())
         .all()
     )
@@ -171,9 +159,7 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
                 created_at=t.created_at,
                 draft_count=len(drafts),
                 smoke_count=sum(1 for d in drafts if d.is_smoke),
-                coverage_rate=t.quality_report.coverage_rate
-                if t.quality_report
-                else None,
+                coverage_rate=t.quality_report.coverage_rate if t.quality_report else None,
                 review_stats=t.review_stats,
             )
         )
@@ -182,29 +168,64 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{task_id}", response_model=GenerationTaskOut)
 def get_task(project_id: int, task_id: int, db: Session = Depends(get_db)):
-    """获取单个生成任务的完整明细，包含草稿和质检报告。
+    return _load_task(db, project_id, task_id)
 
-    Args:
-        project_id (int): 项目 ID。
-        task_id (int): 任务 ID。
-        db (Session): 数据库会话。
 
-    Returns:
-        GenerationTaskOut: 生成任务详情。
+@router.post("/{task_id}/pause", response_model=GenerationTaskOut)
+def pause_task(project_id: int, task_id: int, db: Session = Depends(get_db)):
+    """请求协作式暂停：当前 LangGraph 节点完成后写入检查点并进入 paused。"""
+    task = _load_task(db, project_id, task_id)
+    if task.is_eval:
+        raise HTTPException(400, "评测任务不支持人工暂停")
+    if task.status == "pausing":
+        return task
+    if task.status == "paused":
+        return task
+    if task.status != "generating":
+        raise HTTPException(400, "只有生成中的任务可以暂停")
 
-    Raises:
-        HTTPException: 任务不存在时返回 404。
-    """
-    task = (
+    updated = (
         db.query(GenerationTask)
-        .options(
-            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        .filter(
+            GenerationTask.id == task.id,
+            GenerationTask.status == "generating",
         )
-        .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
-        .first()
+        .update(
+            {
+                "pause_requested": True,
+                "status": "pausing",
+                "stage": "暂停中，等待当前步骤完成…",
+            },
+            synchronize_session=False,
+        )
     )
-    if not task:
-        raise HTTPException(404, "生成任务不存在")
+    db.commit()
+    if not updated:
+        raise HTTPException(409, "任务状态已变更，无法暂停")
+    db.refresh(task)
+    return task
+
+
+@router.post("/{task_id}/resume", response_model=GenerationTaskOut)
+def resume_task(
+    project_id: int,
+    task_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    """从 LangGraph 最近一次成功检查点恢复失败或已暂停的任务。"""
+    task = _load_task(db, project_id, task_id)
+    if task.status not in ("failed", "paused"):
+        raise HTTPException(400, "只有失败或已暂停的生成任务可以恢复")
+    if (task.run_lease or "").strip():
+        raise HTTPException(409, "生成任务仍在运行，请稍后再试")
+
+    try:
+        lease = claim_run_lease(db, task, resume=True)
+    except RuntimeError as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+    background_tasks.add_task(_resume_generation_task, task.id, lease)
     return task
 
 
@@ -216,21 +237,6 @@ def export_drafts(
     smoke_only: bool = False,
     db: Session = Depends(get_db),
 ):
-    """导出生成任务的测试用例草稿为 .xlsx 或 .md 文件。
-
-    Args:
-        project_id (int): 项目 ID。
-        task_id (int): 任务 ID。
-        format (str, optional): 导出格式，支持 "xlsx" 和 "md"。默认为 "xlsx"。
-        smoke_only (bool, optional): 仅导出冒烟用例。默认为 False。
-        db (Session): 数据库会话。
-
-    Returns:
-        StreamingResponse: 文件流响应。
-
-    Raises:
-        HTTPException: 任务不存在或没有可导出用例时返回 400/404。
-    """
     task = (
         db.query(GenerationTask)
         .options(joinedload(GenerationTask.drafts))
@@ -249,9 +255,7 @@ def export_drafts(
     item_ids = {d.requirement_item_id for d in drafts if d.requirement_item_id}
     items_map = {}
     if item_ids:
-        for item in (
-            db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all()
-        ):
+        for item in db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all():
             items_map[item.id] = item
 
     doc = db.get(RequirementDocument, task.document_id)
@@ -260,28 +264,24 @@ def export_drafts(
     cases = []
     for d in drafts:
         item = items_map.get(d.requirement_item_id)
-        cases.append(
-            {
-                "id": d.id,
-                "module": item.module if item else "",
-                "feature": item.feature if item else "",
-                "title": d.title,
-                "priority": d.priority,
-                "case_type": d.case_type,
-                "is_smoke": d.is_smoke,
-                "precondition": d.precondition,
-                "steps": d.steps,
-                "expected_result": d.expected_result,
-                "review_status": d.review_status,
-                "source": "ai_generated",
-            }
-        )
+        cases.append({
+            "id": d.id,
+            "module": item.module if item else "",
+            "feature": item.feature if item else "",
+            "title": d.title,
+            "priority": d.priority,
+            "case_type": d.case_type,
+            "is_smoke": d.is_smoke,
+            "precondition": d.precondition,
+            "steps": d.steps,
+            "expected_result": d.expected_result,
+            "review_status": d.review_status,
+            "source": "ai_generated",
+        })
 
     fmt = "md" if format == "md" else "xlsx"
     export_title = f"{doc_title}-生成任务{task_id}"
-    content, media_type, ext = export_testcases(
-        export_title, cases, fmt=fmt, include_review=True
-    )
+    content, media_type, ext = export_testcases(export_title, cases, fmt=fmt, include_review=True)
     suffix = "冒烟" if smoke_only else "用例"
     filename = f"{doc_title}-任务{task_id}-{suffix}.{ext}"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
@@ -289,51 +289,39 @@ def export_drafts(
 
 
 @router.post("/{task_id}/review", response_model=list[TestCaseOut])
-def review_drafts(
-    project_id: int, task_id: int, data: ReviewAction, db: Session = Depends(get_db)
-):
-    """批量采纳或驳回测试用例草稿。
-
-    Args:
-        project_id (int): 项目 ID。
-        task_id (int): 任务 ID。
-        data (ReviewAction): 评审操作请求体，指定 draft_ids 和 action（adopt/reject）。
-        db (Session): 数据库会话。
-
-    Returns:
-        list[TestCaseOut]: 采纳操作返回新建的 TestCase 列表，驳回返回空列表。
-
-    Raises:
-        HTTPException: 无效操作时返回 400。
-    """
+def review_drafts(project_id: int, task_id: int, data: ReviewAction, db: Session = Depends(get_db)):
+    task = db.query(GenerationTask).filter(
+        GenerationTask.id == task_id,
+        GenerationTask.project_id == project_id,
+    ).first()
+    if not task:
+        raise HTTPException(404, "生成任务不存在")
     if data.action == "adopt":
         return adopt_drafts(db, task_id, data.draft_ids)
     if data.action == "reject":
         reject_drafts(db, task_id, data.draft_ids, data.reject_reason)
+        return []
+    if data.action == "to_confirm":
+        drafts = (
+            db.query(GeneratedCaseDraft)
+            .filter(GeneratedCaseDraft.task_id == task_id, GeneratedCaseDraft.id.in_(data.draft_ids))
+            .all()
+        )
+        for d in drafts:
+            # 已采纳 / 已驳回的用例是终态，不允许回到待确认
+            if d.review_status not in ("adopted", "rejected"):
+                d.review_status = "to_confirm"
+        db.commit()
         return []
     raise HTTPException(400, "无效操作")
 
 
 @router.post("/{task_id}/judge", response_model=GenerationTaskOut)
 async def rejudge_task(project_id: int, task_id: int, db: Session = Depends(get_db)):
-    """手动（重新）运行 AI Judge 评分，并刷新质检报告中的评分汇总。
-
-    Args:
-        project_id (int): 项目 ID。
-        task_id (int): 任务 ID。
-        db (Session): 数据库会话。
-
-    Returns:
-        GenerationTaskOut: 更新后的生成任务。
-
-    Raises:
-        HTTPException: 任务不存在或没有可评分的用例时返回 400/404。
-    """
+    """手动（重新）运行 AI Judge 评分，并刷新质检报告中的评分汇总。"""
     task = (
         db.query(GenerationTask)
-        .options(
-            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
-        )
+        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
         .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
         .first()
     )
@@ -362,25 +350,13 @@ def edit_draft(
     data: DraftEdit,
     db: Session = Depends(get_db),
 ):
-    """编辑单条候选用例草稿，标记为已编辑状态。
-
-    Args:
-        project_id (int): 项目 ID。
-        task_id (int): 任务 ID。
-        draft_id (int): 草稿 ID。
-        data (DraftEdit): 草稿编辑请求体。
-        db (Session): 数据库会话。
-
-    Returns:
-        GeneratedCaseDraftOut: 更新后的草稿。
-
-    Raises:
-        HTTPException: 草稿不存在时返回 404。
-    """
     draft = (
         db.query(GeneratedCaseDraft)
+        .join(GenerationTask, GeneratedCaseDraft.task_id == GenerationTask.id)
         .filter(
-            GeneratedCaseDraft.id == draft_id, GeneratedCaseDraft.task_id == task_id
+            GeneratedCaseDraft.id == draft_id,
+            GeneratedCaseDraft.task_id == task_id,
+            GenerationTask.project_id == project_id,
         )
         .first()
     )

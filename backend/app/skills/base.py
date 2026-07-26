@@ -2,11 +2,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Literal
 
+from app.services.settings_service import RuntimeModelConfig
 
-SkillCategory = Literal["core", "specialist", "utility"]  # 核心、专家、辅助
-SkillStage = Literal[
-    "requirement", "generation", "quality"
-]  # 需求阶段、生成阶段、质检阶段
+
+SkillCategory = Literal["core", "specialist", "utility", "quality"]
+SkillStage = Literal["requirement", "generation", "quality", "review"]
 
 
 @dataclass
@@ -34,9 +34,10 @@ class SkillMeta:
 
 @dataclass
 class SkillContext:
+    model_config: RuntimeModelConfig
     project_id: int | None = None
     task_id: int | None = None
-    strategy: str = "detailed"
+    strategy: str = "full"
     use_mock: bool = False
 
 

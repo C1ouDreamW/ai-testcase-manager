@@ -64,16 +64,8 @@ MEDIA_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # ---------------------------------------------------------------- row builder
 
-
 def _steps_to_text(raw: Any) -> str:
-    """将 list 或 JSON 字符串或纯文本统一格式化为带编号的多行步骤文本。
-
-    Args:
-        raw (Any): 原始步骤数据，支持 list、JSON 字符串、纯文本。
-
-    Returns:
-        str: "1. xxx\n2. xxx" 格式的步骤文本。
-    """
+    """把 list / JSON 字符串 / 纯文本统一格式化为多行「1. ... 2. ...」。"""
     if raw is None:
         return ""
     if isinstance(raw, list):
@@ -94,19 +86,11 @@ def _steps_to_text(raw: Any) -> str:
 
 
 def build_export_row(case: Any, index: int) -> dict:
-    """将 GeneratedCaseDraft、TestCase 或前端 dict 归一化为导出行字典。
+    """把 GeneratedCaseDraft / TestCase / 前端 dict 归一化为导出行。
 
-    支持 dict 和 SQLAlchemy 对象（用 getattr 兜底）。
-    module 和 feature 需上层调用者提前补入 dict 或 ORM 对象。
-
-    Args:
-        case (Any): 用例对象，支持 dict 或 SQLAlchemy ORM 对象。
-        index (int): 用例序号（从 0 开始）。
-
-    Returns:
-        dict: 包含 no、module、feature、title、priority、steps_text 等字段的导出行。
+    - 允许 dict、SQLAlchemy 对象（用 getattr 兜底）
+    - module / feature 从关联 RequirementItem 上补齐时，需上层调用者提前塞进 dict
     """
-
     def _get(key: str, default: Any = "") -> Any:
         if isinstance(case, dict):
             return case.get(key, default)
@@ -134,29 +118,13 @@ def build_export_row(case: Any, index: int) -> dict:
 
 
 def _columns(include_review: bool) -> list[tuple[str, str]]:
-    """获取导出列定义，根据是否包含评审信息决定列集合。
-
-    Args:
-        include_review (bool): 是否包含评审状态和来源列。
-
-    Returns:
-        list[tuple[str, str]]: 列定义列表，每项为 (字段名, 列标题)。
-    """
     return BASE_COLUMNS + (REVIEW_COLUMNS if include_review else [])
 
 
 # ---------------------------------------------------------------- Markdown (大纲式)
 
-
 def _strip_step_number(step: str) -> str:
-    """去掉步骤前的编号前缀（如"1. xxx"），便于用 Markdown 列表重新展示。
-
-    Args:
-        step (str): 步骤文本。
-
-    Returns:
-        str: 去除编号前缀后的步骤文本。
-    """
+    """去掉 '1. xxx' 之类的编号前缀，便于用 Markdown 列表重新展示。"""
     if ". " in step:
         head, tail = step.split(". ", 1)
         if head.isdigit():
@@ -164,17 +132,8 @@ def _strip_step_number(step: str) -> str:
     return step
 
 
-def _group_rows(
-    rows: list[dict],
-) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, list[dict]]]]:
-    """按模块和功能点二级分组，保留首次出现的顺序。
-
-    Args:
-        rows (list[dict]): 导出行的列表。
-
-    Returns:
-        tuple: (module_order, feature_order, grouped) 三元组。
-    """
+def _group_rows(rows: list[dict]) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, list[dict]]]]:
+    """按 module → feature 分组，保留首次出现的顺序。"""
     module_order: list[str] = []
     feature_order: dict[str, list[str]] = {}
     grouped: dict[str, dict[str, list[dict]]] = {}
@@ -193,33 +152,18 @@ def _group_rows(
 
 
 def _split_text_lines(text: str) -> list[str]:
-    """将多行文本按换行拆分为非空行列表。
-
-    Args:
-        text (str): 原始文本。
-
-    Returns:
-        list[str]: 去除空白后的非空行列表。
-    """
+    """把多行文本拆成非空行；单行文本也返回长度为 1 的列表。"""
     return [line.strip() for line in (text or "").splitlines() if line.strip()]
 
 
-def export_testcases_md(
-    title: str, rows: list[dict], include_review: bool = False
-) -> str:
-    """大纲式 Markdown 导出：模块 → 功能点 → 用例 → 前置/步骤/预期。
+def export_testcases_md(title: str, rows: list[dict], include_review: bool = False) -> str:
+    """大纲式 Markdown：模块 → 功能点 → 用例 → 前置/步骤/预期。
 
-    用例标题前用 `【冒烟】【类型】【优先级】` 标签标注，前置条件、操作步骤、
-    预期结果的具体内容都作为子节点展开。兼容 XMind、幕布、飞书大纲等脑图工具的
-    Markdown 大纲导入。
+    - 用例标题前用 `【冒烟】【类型】【优先级】` 标签
+    - 前置条件 / 操作步骤 / 预期结果 的具体内容都作为子节点展开
+    - 兼容 XMind、幕布、飞书大纲等脑图工具的 Markdown 大纲导入
 
-    Args:
-        title (str): 导出文档的标题。
-        rows (list[dict]): build_export_row 生成的导出行列表。
-        include_review (bool, optional): 保留参数以兼容旧调用。默认为 False。
-
-    Returns:
-        str: 大纲式 Markdown 文本。
+    include_review 参数保留以兼容旧调用，但不再输出评审 / 来源备注（用户显式要求去掉）。
     """
     module_order, feature_order, grouped = _group_rows(rows)
 
@@ -267,20 +211,7 @@ def export_testcases_md(
 
 # ---------------------------------------------------------------- Excel
 
-
 def export_testcases_xlsx(title: str, rows: list[dict], include_review: bool) -> bytes:
-    """将规范化后的测试用例行导出为 .xlsx 格式的字节数据。
-
-    生成带紫色表头、冻结首行、自动换行的工作表。
-
-    Args:
-        title (str): 工作表名称。
-        rows (list[dict]): build_export_row 生成的导出行列表。
-        include_review (bool): 是否包含评审状态和来源列。
-
-    Returns:
-        bytes: .xlsx 文件的字节数据。
-    """
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
@@ -313,25 +244,16 @@ def export_testcases_xlsx(title: str, rows: list[dict], include_review: bool) ->
 
 # ---------------------------------------------------------------- dispatch
 
-
 def export_testcases(
     title: str,
     cases: list[Any],
     fmt: str = "xlsx",
     include_review: bool = False,
 ) -> tuple[bytes, str, str]:
-    """测试用例导出的统一入口，根据格式返回字节内容、媒体类型和文件扩展名。
+    """统一入口：返回 (bytes, media_type, ext)。
 
-    调用方需提前将 module 和 feature 补入用例对象，因为 ORM 对象上通常不直接带这两个字段。
-
-    Args:
-        title (str): 导出文档的标题。
-        cases (list[Any]): 用例对象列表（dict / GeneratedCaseDraft / TestCase）。
-        fmt (str, optional): 导出格式，支持 "xlsx" 和 "md"。默认为 "xlsx"。
-        include_review (bool, optional): 是否包含评审状态和来源列。默认为 False。
-
-    Returns:
-        tuple[bytes, str, str]: (字节内容, MIME 类型, 文件扩展名)。
+    cases 元素可以是 dict / GeneratedCaseDraft / TestCase；调用方需提前把 module/feature
+    补进 dict（例如通过 join RequirementItem），因为 ORM 对象上通常不直接带这两个字段。
     """
     rows = [build_export_row(case, idx) for idx, case in enumerate(cases)]
     if fmt == "md":

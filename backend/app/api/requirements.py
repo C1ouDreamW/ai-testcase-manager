@@ -7,6 +7,7 @@ from io import BytesIO
 from urllib.parse import quote
 
 from app.database import get_db
+from app.api.deps import require_project_access
 from app.models.project import Project
 from app.models.requirement import RequirementDocument, RequirementItem
 from app.schemas import (
@@ -18,49 +19,29 @@ from app.schemas import (
     RequirementItemUpdate,
     TestScopeUpdate,
 )
-from app.services.document_parser import (
-    DocumentParseError,
-    parse_upload,
-    title_from_filename,
-)
+from app.services.document_parser import DocumentParseError, parse_upload, title_from_filename
 from app.services.featurelist_service import export_featurelist, parse_featurelist
 from app.services.generation_service import confirm_requirements, structure_requirements
+from app.services.settings_service import get_project_runtime_config
 from app.skills import propose_test_scope
 
-router = APIRouter(prefix="/projects/{project_id}/requirements", tags=["requirements"])
+router = APIRouter(
+    prefix="/projects/{project_id}/requirements",
+    tags=["requirements"],
+    dependencies=[Depends(require_project_access)],
+)
 
 
-def _get_document(
-    db: Session, project_id: int, document_id: int
-) -> RequirementDocument | None:
-    """根据项目 ID 和文档 ID 查询需求文档，预加载关联的功能点列表。
-
-    Args:
-        db (Session): 数据库会话。
-        project_id (int): 项目 ID。
-        document_id (int): 文档 ID。
-
-    Returns:
-        RequirementDocument | None: 需求文档对象，不存在时返回 None。
-    """
+def _get_document(db: Session, project_id: int, document_id: int) -> RequirementDocument | None:
     return (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(
-            RequirementDocument.id == document_id,
-            RequirementDocument.project_id == project_id,
-        )
+        .filter(RequirementDocument.id == document_id, RequirementDocument.project_id == project_id)
         .first()
     )
 
 
 def _invalidate_confirmation(db: Session, doc: RequirementDocument) -> None:
-    """当文档被编辑时使已确认的状态失效，退回 structured 状态。
-
-    Args:
-        db (Session): 数据库会话。
-        doc (RequirementDocument): 需求文档对象。
-    """
     if doc.status != "confirmed":
         return
     doc.status = "structured"
@@ -71,21 +52,10 @@ def _invalidate_confirmation(db: Session, doc: RequirementDocument) -> None:
 
 @router.get("", response_model=list[RequirementDocumentOut])
 def list_documents(project_id: int, db: Session = Depends(get_db)):
-    """列出项目下所有业务需求文档，排除评测专用文档。
-
-    Args:
-        project_id (int): 项目 ID。
-        db (Session): 数据库会话。
-
-    Returns:
-        list[RequirementDocumentOut]: 需求文档列表。
-    """
     docs = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(
-            RequirementDocument.project_id == project_id, ~RequirementDocument.is_eval
-        )
+        .filter(RequirementDocument.project_id == project_id, RequirementDocument.is_eval == False)
         .order_by(RequirementDocument.created_at.desc())
         .all()
     )
@@ -93,22 +63,7 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=RequirementDocumentOut, status_code=201)
-async def create_document(
-    project_id: int, data: RequirementDocumentCreate, db: Session = Depends(get_db)
-):
-    """创建文本形式的需求文档。
-
-    Args:
-        project_id (int): 项目 ID。
-        data (RequirementDocumentCreate): 需求文档创建请求体。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 新创建的需求文档。
-
-    Raises:
-        HTTPException: 项目不存在时返回 404。
-    """
+async def create_document(project_id: int, data: RequirementDocumentCreate, db: Session = Depends(get_db)):
     if not db.query(Project).get(project_id):
         raise HTTPException(404, "项目不存在")
 
@@ -132,20 +87,6 @@ async def upload_document(
     title: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """上传文件作为需求文档，支持 .docx、.md、.markdown 格式。
-
-    Args:
-        project_id (int): 项目 ID。
-        file (UploadFile): 上传的文件。
-        title (str | None, optional): 自定义标题，不传则自动从文件名提取。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 新创建的需求文档。
-
-    Raises:
-        HTTPException: 项目不存在或文件解析失败时返回 400/404。
-    """
     if not db.query(Project).get(project_id):
         raise HTTPException(404, "项目不存在")
 
@@ -170,29 +111,11 @@ async def upload_document(
 
 
 @router.post("/{document_id}/structure", response_model=RequirementDocumentOut)
-async def structure_document(
-    project_id: int, document_id: int, db: Session = Depends(get_db)
-):
-    """调用 AI 解析需求文档，提取功能点列表。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 更新后的需求文档（含功能点）。
-
-    Raises:
-        HTTPException: 需求文档不存在时返回 404。
-    """
+async def structure_document(project_id: int, document_id: int, db: Session = Depends(get_db)):
     doc = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(
-            RequirementDocument.id == document_id,
-            RequirementDocument.project_id == project_id,
-        )
+        .filter(RequirementDocument.id == document_id, RequirementDocument.project_id == project_id)
         .first()
     )
     if not doc:
@@ -210,20 +133,6 @@ def update_scope(
     data: TestScopeUpdate,
     db: Session = Depends(get_db),
 ):
-    """手动更新需求文档的测试范围。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        data (TestScopeUpdate): 测试范围请求体。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 更新后的需求文档。
-
-    Raises:
-        HTTPException: 需求文档不存在时返回 404。
-    """
     doc = _get_document(db, project_id, document_id)
     if not doc:
         raise HTTPException(404, "需求文档不存在")
@@ -234,26 +143,11 @@ def update_scope(
 
 
 @router.post("/{document_id}/scope/generate", response_model=RequirementDocumentOut)
-async def generate_scope(
-    project_id: int, document_id: int, db: Session = Depends(get_db)
-):
-    """调用 AI 自动生成需求文档的测试范围建议。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 更新后的需求文档（含自动生成的测试范围）。
-
-    Raises:
-        HTTPException: 需求文档不存在时返回 404。
-    """
+async def generate_scope(project_id: int, document_id: int, db: Session = Depends(get_db)):
     doc = _get_document(db, project_id, document_id)
     if not doc:
         raise HTTPException(404, "需求文档不存在")
-    scope = await propose_test_scope(doc.raw_content)
+    scope = await propose_test_scope(doc.raw_content, get_project_runtime_config(db, project_id))
     doc.test_scope = json.dumps(scope, ensure_ascii=False)
     db.commit()
     db.refresh(doc)
@@ -267,20 +161,6 @@ def export_document_featurelist(
     format: str = "xlsx",
     db: Session = Depends(get_db),
 ):
-    """导出需求文档的功能清单为 .xlsx 或 .md 文件。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        format (str, optional): 导出格式，支持 "xlsx" 和 "md"。默认为 "xlsx"。
-        db (Session): 数据库会话。
-
-    Returns:
-        StreamingResponse: 文件流响应。
-
-    Raises:
-        HTTPException: 需求文档不存在时返回 404。
-    """
     doc = _get_document(db, project_id, document_id)
     if not doc:
         raise HTTPException(404, "需求文档不存在")
@@ -302,29 +182,13 @@ def export_document_featurelist(
     return StreamingResponse(BytesIO(content), media_type=media_type, headers=headers)
 
 
-@router.post(
-    "/featurelist/import", response_model=RequirementDocumentOut, status_code=201
-)
+@router.post("/featurelist/import", response_model=RequirementDocumentOut, status_code=201)
 async def import_featurelist(
     project_id: int,
     file: UploadFile = File(...),
     title: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """导入 .xlsx 或 .md 格式的功能清单，解析后直接创建需求文档和功能点。
-
-    Args:
-        project_id (int): 项目 ID。
-        file (UploadFile): 上传的功能清单文件。
-        title (str | None, optional): 自定义标题，不传则自动从文件名提取。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 新创建的需求文档（含功能点）。
-
-    Raises:
-        HTTPException: 项目不存在或文件解析失败时返回 400/404。
-    """
     if not db.query(Project).get(project_id):
         raise HTTPException(404, "项目不存在")
 
@@ -346,23 +210,22 @@ async def import_featurelist(
     db.flush()
 
     for idx, item in enumerate(items_data):
-        db.add(
-            RequirementItem(
-                document_id=doc.id,
-                module=item.get("module", ""),
-                feature=item.get("feature", ""),
-                description=item.get("description", ""),
-                acceptance_criteria=item.get("acceptance_criteria", ""),
-                constraints=item.get("constraints", ""),
-                priority=item.get("priority", "P1"),
-                sort_order=idx,
-                confirmed=False,
-            )
-        )
+        db.add(RequirementItem(
+            document_id=doc.id,
+            module=item.get("module", ""),
+            feature=item.get("feature", ""),
+            description=item.get("description", ""),
+            acceptance_criteria=item.get("acceptance_criteria", ""),
+            constraints=item.get("constraints", ""),
+            priority=item.get("priority", "P1"),
+            sort_order=idx,
+            confirmed=False,
+        ))
 
     db.commit()
     db.refresh(doc)
     return doc
+
 
 
 @router.post("/{document_id}/confirm", response_model=RequirementDocumentOut)
@@ -372,27 +235,10 @@ def confirm_document(
     data: ConfirmRequest = ConfirmRequest(),
     db: Session = Depends(get_db),
 ):
-    """确认需求文档的功能点，确认后可用于生成测试用例。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        data (ConfirmRequest, optional): 指定要确认的功能点 ID 列表，不传则全量确认。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementDocumentOut: 更新后的需求文档。
-
-    Raises:
-        HTTPException: 需求文档不存在时返回 404。
-    """
     doc = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(
-            RequirementDocument.id == document_id,
-            RequirementDocument.project_id == project_id,
-        )
+        .filter(RequirementDocument.id == document_id, RequirementDocument.project_id == project_id)
         .first()
     )
     if not doc:
@@ -410,20 +256,6 @@ def create_item(
     data: RequirementItemCreate,
     db: Session = Depends(get_db),
 ):
-    """手动创建功能点条目，插入末尾并使确认状态失效。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        data (RequirementItemCreate): 功能点创建请求体。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementItemOut: 新创建的功能点。
-
-    Raises:
-        HTTPException: 需求文档不存在时返回 404。
-    """
     doc = _get_document(db, project_id, document_id)
     if not doc:
         raise HTTPException(404, "需求文档不存在")
@@ -455,21 +287,6 @@ def update_item(
     data: RequirementItemUpdate,
     db: Session = Depends(get_db),
 ):
-    """更新功能点条目，仅更新传入的非空字段，更新后使确认状态失效。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        item_id (int): 功能点 ID。
-        data (RequirementItemUpdate): 功能点更新请求体。
-        db (Session): 数据库会话。
-
-    Returns:
-        RequirementItemOut: 更新后的功能点。
-
-    Raises:
-        HTTPException: 功能点不存在时返回 404。
-    """
     item = (
         db.query(RequirementItem)
         .join(RequirementDocument)
@@ -493,20 +310,7 @@ def update_item(
 
 
 @router.delete("/{document_id}/items/{item_id}", status_code=204)
-def delete_item(
-    project_id: int, document_id: int, item_id: int, db: Session = Depends(get_db)
-):
-    """删除功能点条目，删除后使文档确认状态失效。
-
-    Args:
-        project_id (int): 项目 ID。
-        document_id (int): 需求文档 ID。
-        item_id (int): 功能点 ID。
-        db (Session): 数据库会话。
-
-    Raises:
-        HTTPException: 功能点不存在时返回 404。
-    """
+def delete_item(project_id: int, document_id: int, item_id: int, db: Session = Depends(get_db)):
     item = (
         db.query(RequirementItem)
         .join(RequirementDocument)
