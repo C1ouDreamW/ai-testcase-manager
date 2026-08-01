@@ -1,8 +1,10 @@
-import { InboxOutlined, SearchOutlined } from '@ant-design/icons';
 import {
-  Alert, App, Button, Card, Drawer, Empty, Input, List, Popconfirm, Space, Table, Tag, Upload,
+  DeleteOutlined, EllipsisOutlined, FileTextOutlined, InfoCircleOutlined, SearchOutlined, UploadOutlined,
+} from '@ant-design/icons';
+import {
+  Alert, App, Button, Card, Drawer, Dropdown, Empty, Input, List, Space, Spin, Tag, Tooltip, Upload,
 } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   deleteKnowledgeDoc,
   getKnowledgeChunks,
@@ -12,20 +14,26 @@ import {
 } from '../services/api';
 
 const SOURCE_LABEL = { doc: '业务文档', case: '历史用例', defect: '缺陷记录' };
+const MATCH_META = {
+  both: { color: 'purple', label: '语义 + 关键词', hint: '向量与 BM25 两路检索都命中，相关性最可靠' },
+  vector: { color: 'blue', label: '语义', hint: '向量检索命中（语义相近）' },
+  keyword: { color: 'cyan', label: '关键词', hint: 'BM25 关键词检索命中（精确词匹配）' },
+};
 const STATUS_META = {
   ready: { color: 'green', label: '已入库' },
   processing: { color: 'blue', label: '处理中' },
   failed: { color: 'red', label: '失败' },
 };
 
-export default function KnowledgePanel({ projectId, projectName }) {
-  const { message } = App.useApp();
+export default function KnowledgePanel({ projectId }) {
+  const { message, modal } = App.useApp();
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const [chunkDrawer, setChunkDrawer] = useState({ open: false, doc: null, chunks: [], loading: false });
 
+  const [docKeyword, setDocKeyword] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchHits, setSearchHits] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -40,6 +48,12 @@ export default function KnowledgePanel({ projectId, projectName }) {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const filteredDocs = useMemo(() => {
+    const kw = docKeyword.trim().toLowerCase();
+    if (!kw) return docs;
+    return docs.filter((d) => d.title?.toLowerCase().includes(kw));
+  }, [docs, docKeyword]);
 
   const handleUpload = async (file) => {
     setUploading(true);
@@ -83,101 +97,147 @@ export default function KnowledgePanel({ projectId, projectName }) {
     }
   };
 
-  const columns = [
-    { title: '标题', dataIndex: 'title', ellipsis: true },
-    {
-      title: '类型',
-      dataIndex: 'source_type',
-      width: 100,
-      render: (v) => <Tag>{SOURCE_LABEL[v] || v}</Tag>,
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      render: (v, record) => {
-        const meta = STATUS_META[v] || { color: 'default', label: v };
-        return (
-          <Tag color={meta.color} title={record.error_message || ''}>{meta.label}</Tag>
-        );
+  const docMenu = (doc) => ({
+    items: [
+      {
+        key: 'chunks',
+        icon: <FileTextOutlined />,
+        label: '查看分块',
+        onClick: () => openChunks(doc),
       },
-    },
-    { title: '分块数', dataIndex: 'chunk_count', width: 80 },
-    {
-      title: '入库时间',
-      dataIndex: 'created_at',
-      width: 170,
-      render: (v) => (v ? new Date(v).toLocaleString('zh-CN') : '-'),
-    },
-    {
-      title: '操作',
-      width: 160,
-      render: (_, record) => (
-        <Space>
-          <Button size="small" type="link" onClick={() => openChunks(record)}>查看分块</Button>
-          <Popconfirm title="删除该知识文档及其向量？" onConfirm={() => handleDelete(record)}>
-            <Button size="small" type="link" danger>删除</Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+      { type: 'divider' },
+      {
+        key: 'delete',
+        icon: <DeleteOutlined />,
+        label: '删除',
+        danger: true,
+        onClick: () => {
+          modal.confirm({
+            title: `删除「${doc.title}」？`,
+            content: '该知识文档及其向量将一并删除，AI 生成不再引用。',
+            okText: '删除',
+            okType: 'danger',
+            cancelText: '取消',
+            onOk: () => handleDelete(doc),
+          });
+        },
+      },
+    ],
+  });
 
   return (
     <div>
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-        message={projectName ? <>正在管理「<strong>{projectName}</strong>」的知识库</> : undefined}
-        description="上传业务规则、接口文档、缺陷记录等资料构建项目知识库。开启「知识库检索」后，AI 生成用例前会检索相关知识注入提示词，补充 PRD 缺失的业务背景并减少幻觉。"
-      />
-
-      <Card className="surface-card" title="上传知识文档" style={{ marginBottom: 16 }}>
-        <Upload.Dragger
-          className="requirement-upload"
-          accept=".md,.txt,.docx"
-          showUploadList={false}
-          disabled={uploading}
-          beforeUpload={handleUpload}
-        >
-          <p className="ant-upload-drag-icon"><InboxOutlined /></p>
-          <p className="ant-upload-text">{uploading ? '正在向量化入库...' : '点击或拖拽文件上传'}</p>
-          <p className="ant-upload-hint">支持 Markdown / Word / 文本，按标题层级自动分块并向量化</p>
-        </Upload.Dragger>
-      </Card>
-
       <Card
         className="surface-card"
         title="知识文档"
         style={{ marginBottom: 16 }}
         extra={(
-          <Space.Compact style={{ width: 320 }}>
-            <Input
-              placeholder="输入问题测试检索效果"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onPressEnter={handleSearch}
-              allowClear
-            />
-            <Button icon={<SearchOutlined />} loading={searching} onClick={handleSearch}>检索</Button>
-          </Space.Compact>
+          <Space>
+            {docs.length > 0 && (
+              <Input.Search
+                placeholder="搜索文档标题"
+                allowClear
+                value={docKeyword}
+                onChange={(e) => setDocKeyword(e.target.value)}
+                style={{ width: 200 }}
+              />
+            )}
+            <Upload
+              accept=".md,.txt,.docx"
+              showUploadList={false}
+              disabled={uploading}
+              beforeUpload={handleUpload}
+            >
+              <Button type="primary" icon={<UploadOutlined />} loading={uploading}>
+                {uploading ? '向量化入库中' : '上传文档'}
+              </Button>
+            </Upload>
+            <Tooltip title="支持 Markdown / Word / 文本，上传后按标题层级自动分块并向量化，AI 生成用例时可引用">
+              <InfoCircleOutlined className="page-title-hint" />
+            </Tooltip>
+          </Space>
         )}
       >
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+        ) : docs.length === 0 ? (
+          <Empty description="暂无知识文档，上传后 AI 生成可引用" />
+        ) : filteredDocs.length === 0 ? (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="没有匹配的文档" />
+        ) : (
+          <div className="knowledge-grid">
+            {filteredDocs.map((doc) => {
+              const meta = STATUS_META[doc.status] || { color: 'default', label: doc.status };
+              return (
+                <Card
+                  key={doc.id}
+                  className="knowledge-card"
+                  hoverable
+                  onClick={() => openChunks(doc)}
+                >
+                  <div className="knowledge-card-header">
+                    <div className="knowledge-card-icon"><FileTextOutlined /></div>
+                    <div className="knowledge-card-title" title={doc.title}>{doc.title}</div>
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <Dropdown menu={docMenu(doc)} trigger={['click']}>
+                        <Button type="text" size="small" icon={<EllipsisOutlined />} />
+                      </Dropdown>
+                    </span>
+                  </div>
+                  <div className="knowledge-card-tags">
+                    <Tag color={meta.color} title={doc.error_message || ''}>{meta.label}</Tag>
+                    <Tag>{SOURCE_LABEL[doc.source_type] || doc.source_type}</Tag>
+                  </div>
+                  <div className="knowledge-card-meta">
+                    {doc.chunk_count} 个分块 · {doc.created_at ? new Date(doc.created_at).toLocaleDateString('zh-CN') : '—'} 入库
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Card
+        className="surface-card"
+        style={{ marginBottom: 16 }}
+        title={(
+          <span className="page-title-row">
+            检索测试
+            <Tooltip title="输入问题模拟 AI 生成时的知识召回，验证能否命中正确的知识内容">
+              <InfoCircleOutlined className="page-title-hint" />
+            </Tooltip>
+          </span>
+        )}
+      >
+        <Space.Compact style={{ width: '100%', maxWidth: 480, marginBottom: searchHits !== null ? 16 : 0 }}>
+          <Input
+            placeholder="输入问题测试检索效果，例如：订单退款的边界规则"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onPressEnter={handleSearch}
+            allowClear
+          />
+          <Button icon={<SearchOutlined />} loading={searching} onClick={handleSearch}>检索</Button>
+        </Space.Compact>
         {searchHits !== null && (
-          <div style={{ marginBottom: 16 }}>
-            {searchHits.length === 0 ? (
-              <Alert type="warning" showIcon description="没有命中相关知识（相似度均低于阈值）" />
-            ) : (
-              <List
-                size="small"
-                bordered
-                dataSource={searchHits}
-                renderItem={(hit) => (
+          searchHits.length === 0 ? (
+            <Alert type="warning" showIcon description="没有命中相关知识（语义相似度低于阈值且无关键词命中）" />
+          ) : (
+            <List
+              size="small"
+              bordered
+              dataSource={searchHits}
+              renderItem={(hit) => {
+                const match = MATCH_META[hit.match] || MATCH_META.vector;
+                return (
                   <List.Item>
                     <div style={{ width: '100%' }}>
                       <Space style={{ marginBottom: 4 }}>
-                        <Tag color="blue">相似度 {(hit.score * 100).toFixed(0)}%</Tag>
+                        <Tooltip title={match.hint}>
+                          <Tag color={match.color}>{match.label}</Tag>
+                        </Tooltip>
+                        {hit.score > 0 && <Tag color="blue">相关度 {(hit.score * 100).toFixed(0)}%</Tag>}
                         <span style={{ fontWeight: 600 }}>
                           《{hit.title}》{hit.heading ? ` · ${hit.heading}` : ''}
                         </span>
@@ -185,21 +245,11 @@ export default function KnowledgePanel({ projectId, projectName }) {
                       <div style={{ color: 'var(--muted)', fontSize: 13 }}>{hit.content}</div>
                     </div>
                   </List.Item>
-                )}
-              />
-            )}
-          </div>
+                );
+              }}
+            />
+          )
         )}
-
-        <Table
-          rowKey="id"
-          size="small"
-          loading={loading}
-          columns={columns}
-          dataSource={docs}
-          locale={{ emptyText: <Empty description="暂无知识文档，上传后 AI 生成可引用" /> }}
-          pagination={false}
-        />
       </Card>
 
       <Drawer

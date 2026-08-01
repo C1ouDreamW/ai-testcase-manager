@@ -28,8 +28,6 @@ export default function Knowledge() {
     return <div style={{ textAlign: 'center', padding: 80 }}><Spin /></div>;
   }
 
-  const currentProject = projects.find((p) => p.id === projectId) || null;
-
   return (
     <div>
       <PageHeader
@@ -53,9 +51,9 @@ export default function Knowledge() {
       />
 
       {projects.length === 0 ? (
-        <Empty description={<span>暂无项目，请先到 <Link to="/">我的项目</Link> 创建</span>} style={{ marginTop: 80 }} />
+        <Empty description={<span>暂无项目，请先到 <Link to="/">全部项目</Link> 创建</span>} style={{ marginTop: 80 }} />
       ) : (
-        <KnowledgePanel key={projectId} projectId={projectId} projectName={currentProject?.name} />
+        <KnowledgePanel key={projectId} projectId={projectId} />
       )}
     </div>
   );
