@@ -1,0 +1,22 @@
+name: design_parser
+version: "1.0.0"
+title: 设计稿解析
+description: 从产品设计稿图片提取结构化页面功能与交互规则
+category: core
+stage: requirement
+tags: [design, vision, requirement]
+
+ui:
+  selectable: false
+
+inputs:
+  image_data:
+    type: bytes
+    required: true
+  content_type:
+    type: string
+    required: true
+
+outputs:
+  insights:
+    type: array
