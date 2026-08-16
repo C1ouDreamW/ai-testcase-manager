@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout';
+import AgentAssistant from './pages/AgentAssistant';
 import Evaluation from './pages/Evaluation';
 import GenerateFlow from './pages/GenerateFlow';
 import Knowledge from './pages/Knowledge';
@@ -30,6 +31,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/" element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<ProjectList />} />
+          <Route path="agent" element={<AgentAssistant />} />
           <Route path="settings" element={<Settings />} />
           <Route path="testcases" element={<TestCaseLibrary />} />
           <Route path="knowledge" element={<Knowledge />} />

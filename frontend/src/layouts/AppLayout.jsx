@@ -4,6 +4,7 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   FolderOutlined,
+  RobotOutlined,
   LogoutOutlined,
   MenuOutlined,
   SettingOutlined,
@@ -18,6 +19,7 @@ import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-
 import { clearAuth, getAuth, getHomeOverview, getProject, getSettings, logoutRequest } from '../services/api';
 
 const GLOBAL_NAV = [
+  { key: 'agent', path: '/agent', label: 'AI小助手', icon: RobotOutlined },
   { key: 'home', path: '/', label: '全部项目', icon: AppstoreOutlined, exact: true },
   { key: 'testcases', path: '/testcases', label: '全部用例', icon: DatabaseOutlined },
   { key: 'knowledge', path: '/knowledge', label: '知识库', icon: BookOutlined },
