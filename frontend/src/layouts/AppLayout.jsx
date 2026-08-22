@@ -7,6 +7,7 @@ import {
   RobotOutlined,
   LogoutOutlined,
   MenuOutlined,
+  PlayCircleOutlined,
   SettingOutlined,
   SwapOutlined,
   ThunderboltOutlined,

@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from app.api import agent, auth, designs, evaluations, generations, knowledge, projects, requirements, settings as settings_api, skills, testcases
+from app.api import agent, auth, designs, evaluations, generations, knowledge, projects, requirements, settings as settings_api, skills, test_tasks, testcases
 from app.config import settings
 from app.database import init_db
 from app.services.llm import LLMCallError
@@ -81,6 +81,7 @@ app.include_router(designs.router, prefix="/api")
 app.include_router(generations.router, prefix="/api")
 app.include_router(testcases.router, prefix="/api")
 app.include_router(testcases.project_router, prefix="/api")
+app.include_router(test_tasks.router, prefix="/api")
 app.include_router(evaluations.router, prefix="/api")
 app.include_router(knowledge.router, prefix="/api")
 app.include_router(settings_api.router, prefix="/api")
