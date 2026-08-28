@@ -1,9 +1,9 @@
 // GenerateFlow 向导共享的常量与纯函数（无 React 依赖）
 
 export const QUALITY_COLOR = { pass: 'green', warning: 'orange', fail: 'red' };
-export const REVIEW_COLOR = { pending: 'default', adopted: 'green', rejected: 'red', edited: 'blue' };
+export const REVIEW_COLOR = { pending: 'default', to_confirm: 'orange', adopted: 'green', rejected: 'red', edited: 'blue' };
 export const QUALITY_LABEL = { pass: '通过', warning: '警告', fail: '不合格' };
-export const REVIEW_LABEL = { pending: '待评审', adopted: '已采纳', rejected: '已驳回', edited: '已编辑' };
+export const REVIEW_LABEL = { pending: '待评审', to_confirm: '待确认', adopted: '已采纳', rejected: '已驳回', edited: '已编辑' };
 export const TYPE_LABEL = { functional: '功能', boundary: '边界', exception: '异常' };
 export const STATUS_LABEL = {
   pending: '等待中', generating: '生成中', completed: '已完成', failed: '失败',

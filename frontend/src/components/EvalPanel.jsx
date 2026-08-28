@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, App, Button, Card, Checkbox, Drawer, Form, Input, Modal, Popconfirm, Progress,
-  Segmented, Select, Space, Spin, Table, Tag, Tooltip, Typography,
+  Segmented, Select, Space, Spin, Table, Tabs, Tag, Tooltip, Typography,
 } from 'antd';
 import { DiffOutlined, PlayCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import {
@@ -209,7 +209,7 @@ export default function EvalPanel() {
   const shownDrafts = caseFilter === 'problem' ? problemDrafts : (caseTask?.drafts || []);
 
   const caseColumns = [
-    { title: '用例标题', dataIndex: 'title', ellipsis: true },
+    { title: '用例标题', dataIndex: 'title', ellipsis: true, className: 'key-text-cell' },
     { title: '类型', dataIndex: 'case_type', width: 80, render: v => <Tag>{TYPE_LABEL[v] || v}</Tag> },
     { title: '优先级', dataIndex: 'priority', width: 80, render: priorityTag },
     { title: '质量', dataIndex: 'quality_status', width: 90, render: v => <Tag color={QUALITY_COLOR[v]}>{QUALITY_LABEL[v] || v}</Tag> },
@@ -217,7 +217,7 @@ export default function EvalPanel() {
   ];
 
   const sampleColumns = [
-    { title: '样本标题', dataIndex: 'title', ellipsis: true },
+    { title: '样本标题', dataIndex: 'title', ellipsis: true, className: 'key-text-cell' },
     {
       title: '标准测试点',
       dataIndex: 'checkpoints',
@@ -259,7 +259,7 @@ export default function EvalPanel() {
                 : '排队中…'}
             </div>
             {r.stage && (
-              <div style={{ fontSize: 12, color: '#2563EB', marginTop: 2 }}>{r.stage}</div>
+              <div style={{ fontSize: 12, color: '#5798F5', marginTop: 2 }}>{r.stage}</div>
             )}
           </div>
         );
@@ -359,17 +359,16 @@ export default function EvalPanel() {
   ];
 
   return (
-    <Card className="surface-card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-        <Segmented
-          value={view}
-          onChange={setView}
-          options={[
-            { label: `评测运行 (${runs.length})`, value: 'runs' },
-            { label: `评测样本 (${samples.length})`, value: 'samples' },
-          ]}
-        />
-        {view === 'samples' ? (
+    <>
+      <Tabs
+        className="task-list-tabs"
+        activeKey={view}
+        onChange={setView}
+        items={[
+          { key: 'runs', label: `评测运行 (${runs.length})` },
+          { key: 'samples', label: `评测样本 (${samples.length})` },
+        ]}
+        tabBarExtraContent={view === 'samples' ? (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openSampleModal()}>新建样本</Button>
         ) : (
           <Space>
@@ -393,8 +392,9 @@ export default function EvalPanel() {
             </Button>
           </Space>
         )}
-      </div>
+      />
 
+      <Card className="surface-card">
       {view === 'samples' ? (
         <Table
           rowKey="id"
@@ -579,6 +579,7 @@ export default function EvalPanel() {
           </>
         )}
       </Drawer>
-    </Card>
+      </Card>
+    </>
   );
 }

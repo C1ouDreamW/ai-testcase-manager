@@ -4,10 +4,11 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   FolderOutlined,
-  RobotOutlined,
+  HistoryOutlined,
   LogoutOutlined,
   MenuOutlined,
   PlayCircleOutlined,
+  RobotOutlined,
   SettingOutlined,
   SwapOutlined,
   ThunderboltOutlined,
@@ -31,6 +32,9 @@ const PROJECT_NAV = [
   { key: 'overview', suffix: '', label: '概览', icon: AppstoreOutlined },
   { key: 'generate', suffix: '/generate', label: 'AI 生成', icon: ThunderboltOutlined },
   { key: 'testcases', suffix: '/testcases', label: '项目用例', icon: DatabaseOutlined },
+  { key: 'tasks', suffix: '/tasks', label: '测试任务', icon: PlayCircleOutlined },
+  { key: 'knowledge', suffix: '/knowledge', label: '知识库', icon: BookOutlined },
+  { key: 'generations', suffix: '/generations', label: '生成记录', icon: HistoryOutlined },
 ];
 
 const WORKSPACE_THEME = {

@@ -19,7 +19,7 @@ export function CaseDetail({ record }) {
       <div className="case-detail-row">
         <span className="case-detail-label">前置条件</span>{record.precondition || '无'}
       </div>
-      <div className="case-detail-row">
+      <div className="case-detail-row case-detail-row-block">
         <span className="case-detail-label">操作步骤</span>
         <span style={{ whiteSpace: 'pre-wrap' }}>{stepsToText(record.steps)}</span>
       </div>

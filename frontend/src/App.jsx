@@ -6,12 +6,15 @@ import GenerateFlow from './pages/GenerateFlow';
 import Knowledge from './pages/Knowledge';
 import Login from './pages/Login';
 import ProjectDetail from './pages/ProjectDetail';
+import ProjectGenerations from './pages/ProjectGenerations';
+import ProjectKnowledge from './pages/ProjectKnowledge';
 import ProjectList from './pages/ProjectList';
+import ProjectTestcases from './pages/ProjectTestcases';
+import ProjectTestTasks from './pages/ProjectTestTasks';
 import Register from './pages/Register';
 import Settings from './pages/Settings';
 import TestCaseLibrary from './pages/TestCaseLibrary';
 import TestTaskDetail from './pages/TestTaskDetail';
-import ProjectTestTasks from './pages/ProjectTestTasks';
 import { getAuth } from './services/api';
 
 function RequireAuth({ children }) {
@@ -40,9 +43,11 @@ export default function App() {
           <Route path="evaluation" element={<Evaluation />} />
           <Route path="projects/:projectId" element={<ProjectDetail />} />
           <Route path="projects/:projectId/generate" element={<GenerateFlow />} />
+          <Route path="projects/:projectId/testcases" element={<ProjectTestcases />} />
           <Route path="projects/:projectId/tasks" element={<ProjectTestTasks />} />
           <Route path="projects/:projectId/tasks/:taskId" element={<TestTaskDetail />} />
-          <Route path="projects/:projectId/testcases" element={<Navigate to="/testcases" replace />} />
+          <Route path="projects/:projectId/knowledge" element={<ProjectKnowledge />} />
+          <Route path="projects/:projectId/generations" element={<ProjectGenerations />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

@@ -1,7 +1,7 @@
-import { ApartmentOutlined, DatabaseOutlined, EditOutlined, FolderOutlined, ProjectOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, DatabaseOutlined, EditOutlined, FolderOutlined, PlayCircleOutlined, ProjectOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Empty, message, Segmented, Spin, Table, Tag, Tooltip, Tree } from 'antd';
-import { useSearchParams } from 'react-router-dom';
+import { App, Button, Card, Empty, Input, Segmented, Select, Space, Spin, Table, Tag, Tooltip, Tree } from 'antd';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import CatalogEditModal from '../components/CatalogEditModal';
 import PageHeader from '../components/PageHeader';
 import TestCaseEditModal from '../components/TestCaseEditModal';
@@ -99,7 +99,7 @@ function CaseDetail({ record }) {
       <div className="case-detail-row">
         <span className="case-detail-label">前置条件</span>{record.precondition || '无'}
       </div>
-      <div className="case-detail-row">
+      <div className="case-detail-row case-detail-row-block">
         <span className="case-detail-label">操作步骤</span>
         <span style={{ whiteSpace: 'pre-wrap' }}>{stepsToText(record.steps)}</span>
       </div>
@@ -110,7 +110,7 @@ function CaseDetail({ record }) {
   );
 }
 
-function buildTreeData(cases) {
+function buildTreeData(cases, singleProject = false) {
   const projects = {};
   cases.forEach((c) => {
     const pid = c.project_id;
@@ -148,10 +148,15 @@ function buildTreeData(cases) {
     };
   });
 
+  // 项目内视图不需要项目层级，模块直接挂在根节点下
+  const children = singleProject
+    ? projectNodes.flatMap((node) => node.children)
+    : projectNodes;
+
   return [{
     key: 'all',
     title: `全部用例 (${cases.length})`,
-    children: projectNodes,
+    children,
   }];
 }
 
@@ -207,9 +212,11 @@ function isMultiProject(cases) {
   return new Set(cases.map((c) => c.project_id)).size > 1;
 }
 
-export default function TestCaseLibrary() {
+export default function TestCaseLibrary({ scopeProjectId }) {
+  const { message } = App.useApp();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const projectFilter = searchParams.get('project');
+  const projectFilter = scopeProjectId ? null : searchParams.get('project');
   const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState('list');
@@ -222,13 +229,18 @@ export default function TestCaseLibrary() {
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [suiteFilter, setSuiteFilter] = useState('all');
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [keyword, setKeyword] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState(null);
+  const [typeFilter, setTypeFilter] = useState(null);
+  const [sourceFilter, setSourceFilter] = useState(null);
 
   useEffect(() => {
     setLoading(true);
-    getAllTestcases()
+    getAllTestcases(scopeProjectId || undefined)
       .then(setCases)
       .finally(() => setLoading(false));
-  }, []);
+  }, [scopeProjectId]);
 
   useEffect(() => {
     if (projectFilter) setSelectedKey(`p:${projectFilter}`);
@@ -239,8 +251,21 @@ export default function TestCaseLibrary() {
     setExpandedKeys((prev) => (prev.includes(`p:${projectFilter}`) ? prev : [...prev, `p:${projectFilter}`]));
   }, [projectFilter]);
 
-  const treeData = useMemo(() => buildTreeData(cases), [cases]);
-  const filteredCases = useMemo(() => filterCases(cases, selectedKey), [cases, selectedKey]);
+  const treeData = useMemo(() => buildTreeData(cases, !!scopeProjectId), [cases, scopeProjectId]);
+  const filteredCases = useMemo(() => {
+    let list = filterCases(cases, selectedKey);
+    const kw = keyword.trim().toLowerCase();
+    if (kw) {
+      list = list.filter((c) =>
+        c.title?.toLowerCase().includes(kw)
+        || c.module?.toLowerCase().includes(kw)
+        || c.feature?.toLowerCase().includes(kw));
+    }
+    if (priorityFilter) list = list.filter((c) => c.priority === priorityFilter);
+    if (typeFilter) list = list.filter((c) => c.case_type === typeFilter);
+    if (sourceFilter) list = list.filter((c) => c.source === sourceFilter);
+    return list;
+  }, [cases, selectedKey, keyword, priorityFilter, typeFilter, sourceFilter]);
   const listCases = useMemo(
     () => (suiteFilter === 'smoke' ? filteredCases.filter((c) => c.is_smoke) : filteredCases),
     [filteredCases, suiteFilter],
@@ -351,8 +376,8 @@ export default function TestCaseLibrary() {
   };
 
   const columns = [
-    { title: '项目', dataIndex: 'project_name', width: 120, ellipsis: true },
-    { title: '用例标题', dataIndex: 'title', ellipsis: true },
+    ...(scopeProjectId ? [] : [{ title: '项目', dataIndex: 'project_name', width: 120, ellipsis: true }]),
+    { title: '用例标题', dataIndex: 'title', ellipsis: true, className: 'key-text-cell' },
     {
       title: '用例集',
       dataIndex: 'is_smoke',
@@ -360,7 +385,7 @@ export default function TestCaseLibrary() {
       render: v => (v ? <Tag color="green">冒烟</Tag> : <Tag>完整</Tag>),
     },
     { title: '模块', dataIndex: 'module', width: 110, ellipsis: true, render: v => v || '—' },
-    { title: '功能点', dataIndex: 'feature', width: 140, ellipsis: true, render: v => v || '—' },
+    { title: '功能点', dataIndex: 'feature', width: 140, ellipsis: true, className: 'key-text-cell', render: v => v || '—' },
     { title: '类型', dataIndex: 'case_type', width: 80, render: v => <Tag>{TYPE_LABEL[v] || v}</Tag> },
     { title: '优先级', dataIndex: 'priority', width: 80, render: priorityTag },
     { title: '来源', dataIndex: 'source', width: 90, render: v => SOURCE_LABEL[v] || v },
@@ -379,10 +404,14 @@ export default function TestCaseLibrary() {
   ];
 
   return (
-    <div>
+    <div className="page-wide">
       <PageHeader
-        title="测试用例"
-        description={cases.length ? `全部项目共 ${cases.length} 条已入库用例，按项目与模块浏览` : '采纳的测试用例会汇总在这里，按项目划分'}
+        title={scopeProjectId ? '项目用例' : '全部用例'}
+        description={
+          scopeProjectId
+            ? (cases.length ? `本项目共 ${cases.length} 条已入库用例，按模块与功能点浏览` : '在 AI 生成流程中采纳的用例会出现在这里')
+            : (cases.length ? `全部项目共 ${cases.length} 条已入库用例，按项目与模块浏览` : '采纳的测试用例会汇总在这里，按项目划分')
+        }
         extra={
           !loading && cases.length > 0 && (
             <Tag icon={<DatabaseOutlined />} color="processing">{cases.length} 条用例</Tag>
@@ -447,13 +476,59 @@ export default function TestCaseLibrary() {
             )}
           >
             {viewMode === 'list' ? (
-              <Table
-                rowKey="id"
-                dataSource={listCases}
-                columns={columns}
-                pagination={{ pageSize: 10, showSizeChanger: true }}
-                expandable={{ expandedRowRender: (r) => <CaseDetail record={r} /> }}
-              />
+              <>
+                <Space wrap className="library-filter-bar">
+                  {scopeProjectId && selectedRowKeys.length > 0 && (
+                    <Button
+                      type="primary"
+                      size="small"
+                      icon={<PlayCircleOutlined />}
+                      onClick={() => navigate(`/projects/${scopeProjectId}/tasks`, { state: { caseIds: selectedRowKeys } })}
+                    >
+                      创建测试任务 ({selectedRowKeys.length})
+                    </Button>
+                  )}
+                  <Select
+                    placeholder="优先级"
+                    allowClear
+                    value={priorityFilter}
+                    onChange={setPriorityFilter}
+                    style={{ width: 100 }}
+                    options={['P0', 'P1', 'P2'].map((p) => ({ label: p, value: p }))}
+                  />
+                  <Select
+                    placeholder="类型"
+                    allowClear
+                    value={typeFilter}
+                    onChange={setTypeFilter}
+                    style={{ width: 100 }}
+                    options={Object.entries(TYPE_LABEL).map(([v, l]) => ({ label: l, value: v }))}
+                  />
+                  <Select
+                    placeholder="来源"
+                    allowClear
+                    value={sourceFilter}
+                    onChange={setSourceFilter}
+                    style={{ width: 120 }}
+                    options={Object.entries(SOURCE_LABEL).map(([v, l]) => ({ label: l, value: v }))}
+                  />
+                  <Input.Search
+                    placeholder="搜索标题 / 模块 / 功能点"
+                    allowClear
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    style={{ width: 220 }}
+                  />
+                </Space>
+                <Table
+                  rowKey="id"
+                  dataSource={listCases}
+                  columns={columns}
+                  pagination={{ pageSize: 10, showSizeChanger: true }}
+                  rowSelection={scopeProjectId ? { selectedRowKeys, onChange: setSelectedRowKeys } : undefined}
+                  expandable={{ expandedRowRender: (r) => <CaseDetail record={r} /> }}
+                />
+              </>
             ) : (
               <TestCaseMindmap
                 cases={filteredCases}

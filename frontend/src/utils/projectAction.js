@@ -24,6 +24,62 @@ export function getGenerationStatusClass(status) {
   return 'status-muted';
 }
 
+/** 项目阶段元信息：与后端 ProjectStageOut.stage 一一对应 */
+export const STAGE_META = [
+  { key: 'import', label: '需求导入', desc: '上传或粘贴需求文档，AI 解析为功能点' },
+  { key: 'confirm', label: '功能清单', desc: '核对 AI 解析的功能点，补充边界与风险' },
+  { key: 'generate', label: 'AI 生成', desc: '选择策略与专项 Skill，批量生成候选用例' },
+  { key: 'review', label: '人工评审', desc: '逐条评审候选用例，采纳或驳回' },
+  { key: 'done', label: '用例入库', desc: '已采纳用例进入用例库，可开始新一轮生成' },
+];
+
+export function getStageIndex(stageKey) {
+  const idx = STAGE_META.findIndex((s) => s.key === stageKey);
+  return idx === -1 ? 0 : idx;
+}
+
+/** 把后端 ProjectStageOut 转成「唯一下一步」操作 */
+export function getStageAction(projectId, stage) {
+  if (!stage) return null;
+  const base = `/projects/${projectId}`;
+  switch (stage.stage) {
+    case 'import':
+      return { label: '导入需求', path: `${base}/generate`, kind: 'generate' };
+    case 'confirm':
+      return {
+        label: '继续确认功能点',
+        path: `${base}/generate?doc=${stage.document_id}`,
+        kind: 'generate',
+        hint: stage.item_count ? `${stage.item_count} 个功能点待确认` : '',
+      };
+    case 'generate':
+      return {
+        label: stage.failed ? '重新生成' : '开始 AI 生成',
+        path: `${base}/generate?doc=${stage.document_id}`,
+        kind: 'generate',
+        hint: stage.failed ? '上次生成失败' : '',
+      };
+    case 'review':
+      if (stage.generating) {
+        return { label: '查看生成进度', path: `${base}/generate?task=${stage.task_id}`, kind: 'generate' };
+      }
+      return {
+        label: `继续评审（${stage.pending_drafts} 条待处理）`,
+        path: `${base}/generate?task=${stage.task_id}`,
+        kind: 'generate',
+        hint: `${stage.pending_drafts} 条候选用例待评审`,
+      };
+    case 'done':
+    default:
+      return {
+        label: '查看用例库',
+        path: `${base}/testcases`,
+        kind: 'view',
+        hint: stage.testcase_count ? `已入库 ${stage.testcase_count} 条用例` : '',
+      };
+  }
+}
+
 /** 继续工作 / AI 生成类操作（青绿） */
 export function getProjectWorkAction(project) {
   const id = project.id;

@@ -14,50 +14,14 @@ import { createProject, deleteProject, getHomeOverview } from '../services/api';
 import {
   GEN_STATUS_LABEL,
   getGenerationStatusClass,
-  getProjectViewAction,
   getProjectWorkAction,
+  getStageAction,
   formatRelativeTime,
 } from '../utils/projectAction';
 
 function hasRealDescription(desc) {
   const text = desc?.trim();
   return text && text.length > 2 && !/^\d+$/.test(text);
-}
-
-function ProjectActionButton({ action, size = 'large', onClick }) {
-  if (action.kind === 'generate') {
-    return (
-      <Button size={size} icon={<ThunderboltOutlined />} onClick={onClick}>
-        {action.label}
-      </Button>
-    );
-  }
-  return (
-    <Button size={size} onClick={onClick}>
-      {action.label}
-    </Button>
-  );
-}
-
-function ProjectMetaLine({ project }) {
-  if (!project.last_generation_at) {
-    return (
-      <p className="home-action-meta">
-        尚未开始生成 · {project.testcase_count} 条用例
-      </p>
-    );
-  }
-  return (
-    <p className="home-action-meta">
-      {formatRelativeTime(project.last_generation_at)} 生成
-      {' · '}
-      <span className={getGenerationStatusClass(project.last_generation_status)}>
-        {GEN_STATUS_LABEL[project.last_generation_status] || project.last_generation_status}
-      </span>
-      {' · '}
-      {project.testcase_count} 条用例
-    </p>
-  );
 }
 
 export default function ProjectList() {
@@ -124,11 +88,6 @@ export default function ProjectList() {
   const getCardMenu = (project) => ({
     items: [
       {
-        key: 'overview',
-        label: '项目概览',
-        onClick: () => navigate(`/projects/${project.id}`),
-      },
-      {
         key: 'generate',
         icon: <ThunderboltOutlined />,
         label: 'AI 生成',
@@ -137,8 +96,8 @@ export default function ProjectList() {
       {
         key: 'testcases',
         icon: <DatabaseOutlined />,
-        label: '查看用例',
-        onClick: () => navigate(`/testcases?project=${project.id}`),
+        label: '项目用例',
+        onClick: () => navigate(`/projects/${project.id}/testcases`),
       },
       { type: 'divider' },
       {
@@ -164,34 +123,28 @@ export default function ProjectList() {
     ],
   });
 
-  const renderActionHero = () => {
+  const renderContinueHero = () => {
     if (!focusProject) return null;
-    const workAction = getProjectWorkAction(focusProject);
-    const viewAction = getProjectViewAction(focusProject);
+    const stage = overview?.latest_active_stage;
+    const stageAction = getStageAction(focusProject.id, stage) || getProjectWorkAction(focusProject);
 
     return (
       <section className="home-action-hero">
         <div className="home-action-main">
           <div className="home-action-label">继续上次工作</div>
           <h1 className="home-action-title">{focusProject.name}</h1>
-          <ProjectMetaLine project={focusProject} />
         </div>
         <div className="home-action-buttons">
-          <ProjectActionButton
-            action={workAction}
-            onClick={() => navigate(workAction.path)}
-          />
-          <ProjectActionButton
-            action={viewAction}
-            onClick={() => navigate(viewAction.path)}
-          />
           <Button
             size="large"
             type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setOpen(true)}
+            icon={stageAction.kind === 'generate' ? <ThunderboltOutlined /> : undefined}
+            onClick={() => navigate(stageAction.path)}
           >
-            新建项目
+            {stageAction.label}
+          </Button>
+          <Button size="large" onClick={() => navigate(`/projects/${focusProject.id}`)}>
+            打开项目
           </Button>
         </div>
       </section>
@@ -200,7 +153,7 @@ export default function ProjectList() {
 
   return (
     <div>
-      {hasProjects ? renderActionHero() : (
+      {hasProjects ? renderContinueHero() : (
         <section className="hero-section">
           <div className="hero-content">
             <h1 className="hero-title">从需求到用例，AI 帮你完成</h1>
@@ -219,6 +172,9 @@ export default function ProjectList() {
                 创建第一个项目
               </Button>
             </div>
+            <div className="hero-checklist">
+              首次使用：先到 <Link to="/settings">个人设置</Link> 配置模型 API Key，再创建项目导入需求
+            </div>
           </div>
         </section>
       )}
@@ -226,7 +182,7 @@ export default function ProjectList() {
       {hasProjects && (
         <div className="home-list-toolbar">
           <div>
-            <h2 className="home-list-title">我的项目</h2>
+            <h2 className="home-list-title">全部项目</h2>
             <p className="home-list-desc">共 {projects.length} 个项目</p>
           </div>
           <div className="home-list-controls">
@@ -247,6 +203,9 @@ export default function ProjectList() {
                 { label: '名称', value: 'name' },
               ]}
             />
+            <Button icon={<PlusOutlined />} onClick={() => setOpen(true)}>
+              新建项目
+            </Button>
           </div>
         </div>
       )}
@@ -273,7 +232,6 @@ export default function ProjectList() {
         <div className="project-grid">
           {filteredProjects.map((project) => {
             const workAction = getProjectWorkAction(project);
-            const viewAction = getProjectViewAction(project);
             const isFocus = focusProject?.id === project.id;
             return (
               <Card
@@ -285,16 +243,9 @@ export default function ProjectList() {
                 <div className="project-card-header">
                   <div className="project-card-icon">{project.name.charAt(0)}</div>
                   <div className="project-card-header-text">
-                    <div className="project-card-name">
-                      {project.name}
-                      {isFocus && (
-                        <Tag className="tag-recent">最近</Tag>
-                      )}
-                    </div>
-                    {hasRealDescription(project.description) ? (
+                    <div className="project-card-name">{project.name}</div>
+                    {hasRealDescription(project.description) && (
                       <div className="project-card-desc">{project.description}</div>
-                    ) : (
-                      <div className="project-card-desc muted">暂无项目描述</div>
                     )}
                   </div>
                   <span onClick={(e) => e.stopPropagation()}>
@@ -324,30 +275,23 @@ export default function ProjectList() {
                 </div>
 
                 <div className="project-card-footer">
-                  <span className="project-card-date">创建于 {new Date(project.created_at).toLocaleDateString()}</span>
+                  <span className="project-card-date">
+                    {project.last_generation_at ? `${formatRelativeTime(project.last_generation_at)}活跃` : '尚未开始生成'}
+                  </span>
                   <div className="project-card-actions" onClick={(e) => e.stopPropagation()}>
-                    <ProjectActionButton
-                      action={viewAction}
+                    <Button
                       size="small"
-                      onClick={() => navigate(viewAction.path)}
-                    />
-                    <ProjectActionButton
-                      action={workAction}
-                      size="small"
+                      type="primary"
+                      ghost
                       onClick={() => navigate(workAction.path)}
-                    />
+                    >
+                      {workAction.label}
+                    </Button>
                   </div>
                 </div>
               </Card>
             );
           })}
-        </div>
-      )}
-
-      {hasProjects && overview && (
-        <div className="home-footer-stats">
-          共 {overview.total_projects} 个项目 · {overview.total_testcases} 条用例 · {overview.total_generations} 次生成
-          <Link to="/testcases" className="home-footer-link">查看测试用例</Link>
         </div>
       )}
 

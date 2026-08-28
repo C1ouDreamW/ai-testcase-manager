@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  App, Button, Drawer, Dropdown, Space, Spin, Table, Tag, Tooltip, Typography,
+  App, AutoComplete, Button, Drawer, Dropdown, Form, Input, Modal, Space, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
+import { PlayCircleOutlined } from '@ant-design/icons';
 import {
   QUALITY_COLOR, QUALITY_LABEL, REVIEW_COLOR, REVIEW_LABEL, SKILL_LABEL, STATUS_LABEL, STRATEGY_LABEL, TYPE_LABEL,
 } from '../pages/generate/constants';
 import { CaseDetail, judgeScoreCell, priorityTag } from '../pages/generate/DetailPanels';
-import { exportGenerationDrafts, getGeneration, getGenerationSummaries } from '../services/api';
+import { createTestTask, exportGenerationDrafts, getGeneration, getGenerationSummaries } from '../services/api';
+import { BATCH_PRESETS } from '../utils/runResult';
 
 const { Text } = Typography;
 
@@ -24,7 +26,7 @@ function adoptionCell(stats) {
 }
 
 const draftColumns = [
-  { title: '用例标题', dataIndex: 'title', ellipsis: true },
+  { title: '用例标题', dataIndex: 'title', ellipsis: true, className: 'key-text-cell' },
   {
     title: '用例集',
     dataIndex: 'is_smoke',
@@ -50,12 +52,17 @@ const draftColumns = [
 
 export default function GenerationHistory({ projectId }) {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [summaries, setSummaries] = useState([]);
+  const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(true);
   const [activeSummary, setActiveSummary] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [runTarget, setRunTarget] = useState(null);
+  const [runCreating, setRunCreating] = useState(false);
+  const [runForm] = Form.useForm();
 
   useEffect(() => {
     setLoading(true);
@@ -102,6 +109,36 @@ export default function GenerationHistory({ projectId }) {
     }
   };
 
+  const openCreateRun = (record) => {
+    const dateSuffix = new Date().toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }).replace('/', '');
+    runForm.setFieldsValue({
+      name: `${record.document_title || `任务${record.id}`} ${dateSuffix} 测试`,
+      batch_name: '线下测试',
+    });
+    setRunTarget(record);
+  };
+
+  const handleCreateRun = async () => {
+    const values = await runForm.validateFields();
+    setRunCreating(true);
+    try {
+      const task = await createTestTask(projectId, {
+        name: values.name,
+        description: `从生成记录 #${runTarget.id} 导入`,
+        batch_name: values.batch_name || '线下测试',
+        source_task_id: runTarget.id,
+      });
+      message.success('测试任务已创建');
+      setRunTarget(null);
+      runForm.resetFields();
+      navigate(`/projects/${projectId}/tasks/${task.id}`);
+    } catch (err) {
+      message.error(err?.response?.data?.detail || '创建失败');
+    } finally {
+      setRunCreating(false);
+    }
+  };
+
   const columns = [
     { title: 'ID', dataIndex: 'id', width: 60 },
     { title: '需求文档', dataIndex: 'document_title', ellipsis: true, render: v => v || '—' },
@@ -133,24 +170,51 @@ export default function GenerationHistory({ projectId }) {
     { title: '时间', dataIndex: 'created_at', width: 160, render: v => new Date(v).toLocaleString() },
     {
       title: '操作',
-      width: 80,
+      width: 140,
       render: (_, record) => (
-        <Button type="link" size="small" onClick={() => openDetail(record)}>查看</Button>
+        <Space size={0}>
+          <Button type="link" size="small" onClick={() => openDetail(record)}>查看</Button>
+          {(record.review_stats?.adopted || 0) > 0 && (
+            <Tooltip title={`用本次已采纳的 ${record.review_stats.adopted} 条用例创建测试任务`}>
+              <Button type="link" size="small" onClick={() => openCreateRun(record)}>建任务</Button>
+            </Tooltip>
+          )}
+        </Space>
       ),
     },
   ];
 
   const pendingCount = detail?.review_stats?.pending || 0;
 
+  const filteredSummaries = useMemo(() => {
+    const kw = keyword.trim().toLowerCase();
+    if (!kw) return summaries;
+    return summaries.filter((s) =>
+      s.document_title?.toLowerCase().includes(kw)
+      || String(s.id) === kw
+      || (STRATEGY_LABEL[s.strategy] || s.strategy || '').toLowerCase().includes(kw));
+  }, [summaries, keyword]);
+
   return (
     <>
+      {summaries.length > 0 && (
+        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <Input.Search
+            placeholder="搜索需求文档 / 策略 / 任务 ID"
+            allowClear
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            style={{ width: 260 }}
+          />
+        </div>
+      )}
       <Table
         rowKey="id"
         loading={loading}
-        dataSource={summaries}
+        dataSource={filteredSummaries}
         columns={columns}
-        pagination={summaries.length > 10 ? { pageSize: 10 } : false}
-        locale={{ emptyText: '暂无生成记录，去「AI 用例生成」发起第一次生成' }}
+        pagination={filteredSummaries.length > 10 ? { pageSize: 10 } : false}
+        locale={{ emptyText: keyword ? '没有匹配的生成记录' : '暂无生成记录，去「AI 用例生成」发起第一次生成' }}
       />
 
       <Drawer
@@ -164,6 +228,13 @@ export default function GenerationHistory({ projectId }) {
               <Link to={`/projects/${projectId}/generate?task=${activeSummary?.id}`}>
                 <Button type="primary">继续评审 ({pendingCount})</Button>
               </Link>
+            )}
+            {(detail?.review_stats?.adopted || 0) > 0 && (
+              <Tooltip title={`用本次已采纳的 ${detail.review_stats.adopted} 条用例创建测试任务`}>
+                <Button icon={<PlayCircleOutlined />} onClick={() => openCreateRun(activeSummary)}>
+                  创建测试任务
+                </Button>
+              </Tooltip>
             )}
             <Dropdown
               menu={{
@@ -196,9 +267,9 @@ export default function GenerationHistory({ projectId }) {
                 <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#16a34a' }}>{detail.review_stats?.adopted ?? 0}</div><div className="quality-stat-label">已采纳</div></div>
                 <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#dc2626' }}>{detail.review_stats?.rejected ?? 0}</div><div className="quality-stat-label">已驳回</div></div>
                 <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#ea580c' }}>{detail.review_stats?.pending ?? 0}</div><div className="quality-stat-label">未处理</div></div>
-                <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#2563EB' }}>{detail.quality_report.coverage_rate}%</div><div className="quality-stat-label">覆盖率</div></div>
+                <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#5798F5' }}>{detail.quality_report.coverage_rate}%</div><div className="quality-stat-label">覆盖率</div></div>
                 {detail.quality_report.avg_judge_score != null && (
-                  <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#0891B2' }}>{detail.quality_report.avg_judge_score}</div><div className="quality-stat-label">AI 均分</div></div>
+                  <div className="quality-stat"><div className="quality-stat-value" style={{ color: '#22A3A6' }}>{detail.quality_report.avg_judge_score}</div><div className="quality-stat-label">AI 均分</div></div>
                 )}
                 {detail.tokens_used > 0 && (
                   <div className="quality-stat"><div className="quality-stat-value">{detail.tokens_used >= 1000 ? `${(detail.tokens_used / 1000).toFixed(1)}k` : detail.tokens_used}</div><div className="quality-stat-label">Token</div></div>
@@ -223,6 +294,32 @@ export default function GenerationHistory({ projectId }) {
           </>
         )}
       </Drawer>
+
+      <Modal
+        title="创建测试任务"
+        open={!!runTarget}
+        onOk={handleCreateRun}
+        onCancel={() => { setRunTarget(null); runForm.resetFields(); }}
+        okText="创建并开始执行"
+        cancelText="取消"
+        confirmLoading={runCreating}
+      >
+        <div style={{ marginBottom: 12, fontSize: 13, color: '#646A73' }}>
+          将生成记录 #{runTarget?.id} 已采纳入库的 {runTarget?.review_stats?.adopted || 0} 条用例加入测试任务的首个批次
+        </div>
+        <Form form={runForm} layout="vertical">
+          <Form.Item name="name" label="任务名称" rules={[{ required: true, message: '请输入任务名称' }]}>
+            <Input maxLength={200} />
+          </Form.Item>
+          <Form.Item name="batch_name" label="首个批次" rules={[{ required: true, message: '请输入批次名称' }]}>
+            <AutoComplete
+              options={BATCH_PRESETS.map((v) => ({ value: v }))}
+              placeholder="选择或输入批次名称"
+              maxLength={100}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

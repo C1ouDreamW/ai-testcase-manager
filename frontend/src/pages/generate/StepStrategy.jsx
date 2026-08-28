@@ -1,5 +1,6 @@
-import { Button, Card, Checkbox, Divider, Progress, Space, Switch, Tag } from 'antd';
+import { Button, Card, Checkbox, Divider, Progress, Switch, Tag } from 'antd';
 import { Link } from 'react-router-dom';
+import FlowActionBar from './FlowActionBar';
 
 export default function StepStrategy({
   document,
@@ -20,6 +21,7 @@ export default function StepStrategy({
   onOpenGenerateConfirm,
 }) {
   return (
+    <>
     <Card className="surface-card" title="选择生成策略">
       {document?.status !== 'confirmed' && (
         <div style={{ marginBottom: 16, padding: 12, background: '#fff7ed', borderRadius: 8, color: '#c2410c' }}>
@@ -83,7 +85,7 @@ export default function StepStrategy({
         ) : (
           <span className="specialist-skill-desc">
             项目知识库为空，可先到
-            <Link to={`/knowledge?project=${projectId}`}> 知识库 </Link>
+            <Link to={`/projects/${projectId}/knowledge`}> 知识库 </Link>
             上传业务规则、接口文档等资料
           </span>
         )}
@@ -121,19 +123,25 @@ export default function StepStrategy({
           <div style={{ marginTop: 8, color: '#64748b' }}>正在启动生成任务...</div>
         </div>
       )}
-
-      <Space style={{ marginTop: 20 }}>
-        <Button onClick={onBack}>上一步</Button>
-        <Button
-          type="primary"
-          size="large"
-          loading={loading}
-          disabled={document?.status !== 'confirmed'}
-          onClick={onOpenGenerateConfirm}
-        >
-          确认并开始生成
-        </Button>
-      </Space>
     </Card>
+    <FlowActionBar
+      meta={(
+        <span>
+          <strong>{estimate.featureCount}</strong> 个功能点 ·
+          预估 <strong>{estimate.minCases}～{estimate.maxCases}</strong> 条用例
+        </span>
+      )}
+    >
+      <Button onClick={onBack}>上一步</Button>
+      <Button
+        type="primary"
+        loading={loading}
+        disabled={document?.status !== 'confirmed'}
+        onClick={onOpenGenerateConfirm}
+      >
+        确认并开始生成
+      </Button>
+    </FlowActionBar>
+    </>
   );
 }

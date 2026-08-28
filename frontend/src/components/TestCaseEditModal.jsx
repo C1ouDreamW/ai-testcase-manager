@@ -54,6 +54,14 @@ export default function TestCaseEditModal({
             <Select options={CASE_TYPE_OPTIONS} />
           </Form.Item>
         </Space>
+        <Space style={{ width: '100%' }} size="large">
+          <Form.Item name="module" label="模块" style={{ flex: 1 }}>
+            <Input placeholder="例如：用户登录" />
+          </Form.Item>
+          <Form.Item name="feature" label="功能点" style={{ flex: 1 }}>
+            <Input placeholder="例如：账号密码登录" />
+          </Form.Item>
+        </Space>
         <Form.Item name="precondition" label="前置条件">
           <Input.TextArea rows={2} />
         </Form.Item>
@@ -68,14 +76,6 @@ export default function TestCaseEditModal({
         <Form.Item name="expected_result" label="预期结果" rules={[{ required: true, message: '请输入预期结果' }]}>
           <Input.TextArea rows={3} />
         </Form.Item>
-        <Space style={{ width: '100%' }} size="large">
-          <Form.Item name="module" label="模块" style={{ flex: 1 }}>
-            <Input placeholder="例如：用户登录" />
-          </Form.Item>
-          <Form.Item name="feature" label="功能点" style={{ flex: 1 }}>
-            <Input placeholder="例如：账号密码登录" />
-          </Form.Item>
-        </Space>
       </Form>
     </Modal>
   );

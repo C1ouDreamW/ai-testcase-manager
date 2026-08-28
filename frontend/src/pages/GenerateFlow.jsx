@@ -4,6 +4,7 @@ import {
   ExperimentOutlined,
   FileSearchOutlined,
   FlagOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { App, Form, Steps, Upload } from 'antd';
@@ -12,19 +13,19 @@ import PageHeader from '../components/PageHeader';
 import {
   confirmRequirement, createGeneration, createRequirement, createRequirementItem,
   deleteRequirementItem, editDraft, exportFeatureList, exportGenerationDrafts, generateRequirementScope,
-  getGeneration, getGenerations, getKnowledgeDocs, getSkills, importFeatureList, reviewDrafts, structureRequirement,
-  updateRequirementItem, updateRequirementScope, uploadRequirementFile,
+  getGeneration, getKnowledgeDocs, getRequirements, getSkills, importFeatureList,
+  pauseGeneration, resumeGeneration, reviewDrafts, structureRequirement, updateRequirementItem, updateRequirementScope, uploadRequirementFile,
 } from '../services/api';
 import {
   calcGenerationEstimate, formToScopeJson, groupItemsByModule, mapSpecialists, mapStrategies,
   scopeToForm, stepsToText, textToSteps,
 } from './generate/constants';
 import StepImport from './generate/StepImport';
+import StepDesignImport from './generate/StepDesignImport';
 import StepConfirmItems from './generate/StepConfirmItems';
 import StepStrategy from './generate/StepStrategy';
 import StepReview from './generate/StepReview';
 import StepDone from './generate/StepDone';
-import HistoryCard from './generate/HistoryCard';
 import { DraftEditModal, GenerateConfirmModal, ItemEditModal } from './generate/FlowModals';
 
 export default function GenerateFlow() {
@@ -40,7 +41,6 @@ export default function GenerateFlow() {
   const [task, setTask] = useState(null);
   const [selectedDrafts, setSelectedDrafts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [history, setHistory] = useState([]);
   const [importMode, setImportMode] = useState('text');
   const [selectedFile, setSelectedFile] = useState(null);
   const [itemModalOpen, setItemModalOpen] = useState(false);
@@ -193,25 +193,47 @@ export default function GenerateFlow() {
   };
 
   useEffect(() => {
-    getGenerations(projectId).then(setHistory);
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, [projectId]);
 
-  // 支持 /generate?task=ID 直达评审步骤（从「生成记录」的继续评审进入）
+  // 支持 /generate?task=ID 直达评审步骤（从「生成记录」的继续评审进入），
+  // 以及 /generate?doc=ID 恢复到确认功能点 / 选择策略步骤（从工作台「继续工作」进入）
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     const taskId = searchParams.get('task');
-    if (!taskId) return;
-    getGeneration(projectId, Number(taskId))
-      .then((t) => {
-        setTask(t);
-        goToStep(3);
-        if (t.status === 'generating') pollTask(t.id);
-      })
-      .catch(() => message.error('生成任务不存在'))
-      .finally(() => setSearchParams({}, { replace: true }));
+    const docId = searchParams.get('doc');
+    if (taskId) {
+      getGeneration(projectId, Number(taskId))
+        .then((t) => {
+          setTask(t);
+          goToStep(4);
+          if (['pending', 'pausing', 'generating'].includes(t.status)) pollTask(t.id);
+        })
+        .catch(() => message.error('生成任务不存在'))
+        .finally(() => setSearchParams({}, { replace: true }));
+      return;
+    }
+    if (docId) {
+      getRequirements(projectId)
+        .then((docs) => {
+          const doc = docs.find((d) => d.id === Number(docId));
+          if (!doc) {
+            message.error('需求文档不存在');
+            return;
+          }
+          setDocument(doc);
+          setSelectedItems(
+            doc.status === 'confirmed'
+              ? doc.items.filter((i) => i.confirmed).map((i) => i.id)
+              : doc.items.map((i) => i.id),
+          );
+          goToStep(doc.status === 'confirmed' ? 3 : 1);
+        })
+        .catch(() => message.error('加载需求文档失败'))
+        .finally(() => setSearchParams({}, { replace: true }));
+    }
   }, [projectId]);
 
   const syncDraftSelection = (drafts) => {
@@ -233,9 +255,8 @@ export default function GenerateFlow() {
   const handleStepChange = (target) => {
     if (target === step) return;
     if (target > maxStep) return;
-    if (target === 1 && !document) return;
-    if (target === 2 && !document) return;
-    if ((target === 3 || target === 4) && !task) return;
+    if ([1, 2, 3].includes(target) && !document) return;
+    if ((target === 4 || target === 5) && !task) return;
     setStep(target);
   };
 
@@ -289,7 +310,7 @@ export default function GenerateFlow() {
       setDocument(confirmed);
       setSelectedPreset('full');
       setSpecialistSkills([]);
-      goToStep(2);
+      goToStep(3);
     } finally {
       setLoading(false);
     }
@@ -325,7 +346,7 @@ export default function GenerateFlow() {
       };
       const newTask = await createGeneration(projectId, payload);
       setTask(newTask);
-      goToStep(3);
+      goToStep(4);
       pollTask(newTask.id);
     } catch (err) {
       message.error(err.response?.data?.detail || '启动生成失败');
@@ -340,13 +361,46 @@ export default function GenerateFlow() {
       const t = await getGeneration(projectId, taskId);
       setTask(t);
       syncDraftSelection(t.drafts || []);
-      if (t.status === 'completed' || t.status === 'failed') {
+      if (['completed', 'failed', 'paused'].includes(t.status)) {
         clearInterval(pollTimerRef.current);
         pollTimerRef.current = null;
         if (t.status === 'completed') message.success('生成完成');
-        else message.error(t.error_message || '生成失败');
+        else if (t.status === 'failed') message.error(t.error_message || '生成失败');
+        else if (t.status === 'paused') message.info('生成已暂停，可随时继续');
       }
     }, 1500);
+  };
+
+  const handlePauseGeneration = async () => {
+    if (!task?.id) return;
+    setLoading(true);
+    try {
+      const paused = await pauseGeneration(projectId, task.id);
+      setTask(paused);
+      message.info('已请求暂停，当前步骤完成后生效');
+      if (['pending', 'pausing', 'generating'].includes(paused.status)) {
+        pollTask(task.id);
+      }
+    } catch (err) {
+      message.error(err.response?.data?.detail || '暂停失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResumeGeneration = async () => {
+    if (!task?.id) return;
+    setLoading(true);
+    try {
+      const resumed = await resumeGeneration(projectId, task.id);
+      setTask(resumed);
+      message.success(task.status === 'paused' ? '已继续生成' : '已从最近检查点继续生成');
+      pollTask(task.id);
+    } catch (err) {
+      message.error(err.response?.data?.detail || '恢复任务失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAdopt = async () => {
@@ -360,7 +414,7 @@ export default function GenerateFlow() {
     const t = await getGeneration(projectId, task.id);
     setTask(t);
     syncDraftSelection(t.drafts || []);
-    if ((t.review_stats?.pending ?? 1) === 0) goToStep(4);
+    if ((t.review_stats?.pending ?? 1) === 0) goToStep(5);
   };
 
   const handleReject = async (rejectReason = '') => {
@@ -374,7 +428,30 @@ export default function GenerateFlow() {
     const t = await getGeneration(projectId, task.id);
     setTask(t);
     syncDraftSelection(t.drafts || []);
-    if ((t.review_stats?.pending ?? 1) === 0) goToStep(4);
+    if ((t.review_stats?.pending ?? 1) === 0) goToStep(5);
+  };
+
+  // 脑图详情抽屉里对单条草稿变更评审结果
+  const handleReviewSingle = async (draftId, action, rejectReason = '') => {
+    await reviewDrafts(projectId, task.id, { draft_ids: [draftId], action, reject_reason: rejectReason });
+    const labels = { adopt: '已采纳', reject: '已驳回', to_confirm: '已标记为待确认' };
+    message.success(labels[action] || '已更新');
+    const t = await getGeneration(projectId, task.id);
+    setTask(t);
+    syncDraftSelection(t.drafts || []);
+  };
+
+  const handleMarkConfirm = async () => {
+    const toMark = selectedDrafts.filter(id => {
+      const d = task.drafts.find(x => x.id === id);
+      return d && !['adopted', 'rejected'].includes(d.review_status);
+    });
+    if (!toMark.length) return message.warning('请选择未处理的用例');
+    await reviewDrafts(projectId, task.id, { draft_ids: toMark, action: 'to_confirm' });
+    message.success(`已标记 ${toMark.length} 条为待确认`);
+    const t = await getGeneration(projectId, task.id);
+    setTask(t);
+    syncDraftSelection(t.drafts || []);
   };
 
   const handleSelectAllDrafts = () => {
@@ -483,12 +560,6 @@ export default function GenerateFlow() {
     }
   };
 
-  const handleViewHistoryTask = async (taskId) => {
-    const t = await getGeneration(projectId, taskId);
-    setTask(t);
-    goToStep(3);
-  };
-
   const handleNewTask = () => {
     setStep(0);
     setMaxStep(0);
@@ -498,6 +569,7 @@ export default function GenerateFlow() {
 
   const stepItems = [
     { title: '导入需求', icon: <FileSearchOutlined /> },
+    { title: '导入设计稿', icon: <PictureOutlined /> },
     { title: '确认功能点', icon: <AimOutlined /> },
     { title: '选择策略', icon: <ExperimentOutlined /> },
     { title: '评审采纳', icon: <CheckCircleOutlined /> },
@@ -508,7 +580,7 @@ export default function GenerateFlow() {
     <div>
       <PageHeader
         title="AI 用例生成"
-        description="四步完成：导入需求 → 确认功能点 → 选择策略 → 评审采纳入库（可点击步骤返回上一步）"
+        description="导入需求与设计稿，确认功能点后生成并评审用例（设计稿步骤可跳过）"
       />
 
       <div className="wizard-steps">
@@ -534,6 +606,19 @@ export default function GenerateFlow() {
       )}
 
       {step === 1 && document && (
+        <StepDesignImport
+          projectId={projectId}
+          document={document}
+          onBack={() => setStep(0)}
+          onContinue={(updatedDocument) => {
+            setDocument(updatedDocument);
+            setSelectedItems(updatedDocument.items.map(item => item.id));
+            goToStep(2);
+          }}
+        />
+      )}
+
+      {step === 2 && document && (
         <StepConfirmItems
           document={document}
           selectedItems={selectedItems}
@@ -550,12 +635,12 @@ export default function GenerateFlow() {
           onAddItem={openAddItem}
           onEditItem={openEditItem}
           onRemoveItem={removeItem}
-          onBack={() => setStep(0)}
+          onBack={() => setStep(1)}
           onConfirm={handleConfirm}
         />
       )}
 
-      {step === 2 && (
+      {step === 3 && (
         <StepStrategy
           document={document}
           strategies={strategies}
@@ -571,12 +656,12 @@ export default function GenerateFlow() {
           knowledgeReadyCount={knowledgeReadyCount}
           projectId={projectId}
           loading={loading}
-          onBack={() => setStep(1)}
+          onBack={() => setStep(2)}
           onOpenGenerateConfirm={openGenerateConfirm}
         />
       )}
 
-      {step === 3 && task && (
+      {step === 4 && task && (
         <StepReview
           task={task}
           draftSuiteFilter={draftSuiteFilter}
@@ -590,13 +675,19 @@ export default function GenerateFlow() {
           onSelectAllDrafts={handleSelectAllDrafts}
           onAdopt={handleAdopt}
           onReject={handleReject}
-          onFinish={() => goToStep(4)}
-          onBack={() => setStep(2)}
+          onMarkConfirm={handleMarkConfirm}
+          onReviewDraft={handleReviewSingle}
+          onResume={handleResumeGeneration}
+          onPause={handlePauseGeneration}
+          resumeLoading={loading}
+          pauseLoading={loading}
+          onFinish={() => goToStep(5)}
+          onBack={() => setStep(3)}
           onNewTask={handleNewTask}
         />
       )}
 
-      {step === 4 && task && (
+      {step === 5 && task && (
         <StepDone
           task={task}
           projectId={projectId}
@@ -604,10 +695,6 @@ export default function GenerateFlow() {
           onExport={handleExportDrafts}
           onNewTask={handleNewTask}
         />
-      )}
-
-      {history.length > 0 && step === 0 && (
-        <HistoryCard history={history} onViewTask={handleViewHistoryTask} />
       )}
 
       <GenerateConfirmModal

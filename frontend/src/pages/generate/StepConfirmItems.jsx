@@ -1,5 +1,6 @@
 import { Button, Card, Dropdown, Input, Popconfirm, Space, Table, Tag, Typography } from 'antd';
 import { ItemDetail, priorityTag } from './DetailPanels';
+import FlowActionBar from './FlowActionBar';
 
 const { Text } = Typography;
 
@@ -24,7 +25,17 @@ export default function StepConfirmItems({
 }) {
   const itemColumns = [
     { title: '模块', dataIndex: 'module', width: 100, ellipsis: true },
-    { title: '功能点', dataIndex: 'feature', width: 140, ellipsis: true },
+    {
+      title: '来源',
+      dataIndex: 'source_type',
+      width: 76,
+      render: value => (
+        <Tag color={value === 'design' ? 'purple' : 'blue'}>
+          {value === 'design' ? '设计稿' : '需求'}
+        </Tag>
+      ),
+    },
+    { title: '功能点', dataIndex: 'feature', width: 140, ellipsis: true, className: 'key-text-cell' },
     { title: '优先级', dataIndex: 'priority', width: 72, render: priorityTag },
     { title: '描述', dataIndex: 'description', ellipsis: true, render: v => v || '—' },
     { title: '验收标准', dataIndex: 'acceptance_criteria', ellipsis: true, render: v => v || '—' },
@@ -45,6 +56,7 @@ export default function StepConfirmItems({
   ];
 
   return (
+    <>
     <Card
       className="surface-card"
       title="确认功能点"
@@ -109,10 +121,20 @@ export default function StepConfirmItems({
         pagination={false}
         expandable={{ expandedRowRender: (r) => <ItemDetail record={r} /> }}
       />
-      <Space style={{ marginTop: 20 }}>
-        <Button onClick={onBack}>上一步</Button>
-        <Button type="primary" loading={loading} onClick={onConfirm}>确认并继续</Button>
-      </Space>
     </Card>
+    <FlowActionBar
+      meta={<span>已选 <strong>{selectedItems.length}</strong> / {document.items.length} 个功能点</span>}
+    >
+      <Button onClick={onBack}>上一步</Button>
+      <Button
+        type="primary"
+        loading={loading}
+        disabled={!selectedItems.length}
+        onClick={onConfirm}
+      >
+        确认并继续
+      </Button>
+    </FlowActionBar>
+    </>
   );
 }
