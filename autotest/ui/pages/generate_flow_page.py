@@ -4,7 +4,7 @@ from .base_page import BasePage
 
 
 class GenerateFlowPage(BasePage):
-    """AI 生成五步流程页。"""
+    """AI 生成向导页：导入 → 设计稿（可跳过）→ 确认功能点 → 策略 → 评审 → 完成。"""
 
     def goto_flow(self, project_id: int):
         return self.goto(f"/projects/{project_id}/generate")
@@ -15,25 +15,29 @@ class GenerateFlowPage(BasePage):
         self.page.get_by_placeholder("粘贴 PRD 内容...").fill(content)
         self.page.get_by_role("button", name="解析功能点").click()
 
+    # ---- 第 2 步：设计稿导入（可跳过）----
+    def skip_design(self):
+        self.page.get_by_role("button", name="跳过设计稿").click()
+
+    # ---- 第 3 步：确认功能点 ----
     def expect_confirm_step(self):
-        expect(self.page.get_by_text("确认功能点").first).to_be_visible(timeout=30000)
-        expect(self.feature_rows().first).to_be_visible(timeout=30000)
+        """确认步骤的操作栏按钮，避免误匹配步骤条上的同名文案。"""
+        expect(self.page.get_by_role("button", name="确认并继续")).to_be_visible(timeout=30000)
 
     def feature_rows(self):
         return self.page.locator(".ant-table-tbody tr.ant-table-row")
 
-    # ---- 第 2 步：确认功能点 ----
     def confirm_items(self):
         self.page.get_by_role("button", name="确认并继续").click()
 
-    # ---- 第 3 步：策略与生成 ----
+    # ---- 第 4 步：策略与生成 ----
     def start_generation(self):
         self.page.get_by_role("button", name="确认并开始生成").click()
         dialog = self.page.get_by_role("dialog")
         expect(dialog.get_by_text("确认生成配置")).to_be_visible()
         dialog.get_by_role("button", name="开始生成").click()
 
-    # ---- 第 4 步：评审 ----
+    # ---- 第 5 步：评审 ----
     def wait_review_ready(self, timeout: int = 60000):
         """等生成任务完成且草稿行渲染出来（按钮常驻，不能作为完成信号）。"""
         expect(self.page.locator(".ant-table-tbody tr.ant-table-row").first).to_be_visible(timeout=timeout)
@@ -49,13 +53,13 @@ class GenerateFlowPage(BasePage):
         self.page.get_by_role("button", name="采纳选中").click()
 
     def reject_selected(self, reason_confirm: bool = True):
-        self.page.get_by_role("button", name="驳回选中").click()
+        self.page.get_by_role("button", name="驳回").first.click()
         dialog = self.page.get_by_role("dialog")
         expect(dialog).to_be_visible()
         dialog.get_by_role("button", name="确认驳回").or_(
             dialog.get_by_role("button", name="确 定")
         ).first.click()
 
-    # ---- 第 5 步：完成 ----
+    # ---- 第 6 步：完成 ----
     def expect_done_step(self):
         expect(self.page.get_by_role("button", name="查看测试用例")).to_be_visible(timeout=15000)

@@ -51,7 +51,7 @@ def test_invalid_review_action_rejected(client, project, completed_task):
         f"/projects/{project['id']}/generations/{completed_task['id']}/review",
         json={"draft_ids": _draft_ids(completed_task, 1), "action": "destroy"},
     )
-    assert resp.status_code == 400
+    assert resp.status_code == 422  # action 由 Pydantic Literal 校验
 
 
 def test_edit_draft_marks_was_edited(client, project, completed_task):

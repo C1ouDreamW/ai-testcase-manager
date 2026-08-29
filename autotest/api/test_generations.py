@@ -113,3 +113,18 @@ def test_rejudge_assigns_scores(client, project, completed_task):
 def test_rejudge_nonexistent_task_404(client, project):
     resp = client.post(f"/projects/{project['id']}/generations/9999999/judge")
     assert resp.status_code == 404
+
+
+def test_pause_completed_task_rejected(client, project, completed_task):
+    resp = client.post(f"/projects/{project['id']}/generations/{completed_task['id']}/pause")
+    assert resp.status_code == 400
+
+
+def test_resume_completed_task_rejected(client, project, completed_task):
+    resp = client.post(f"/projects/{project['id']}/generations/{completed_task['id']}/resume")
+    assert resp.status_code == 400
+
+
+def test_pause_nonexistent_task_404(client, project):
+    resp = client.post(f"/projects/{project['id']}/generations/9999999/pause")
+    assert resp.status_code == 404

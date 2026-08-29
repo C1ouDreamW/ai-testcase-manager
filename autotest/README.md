@@ -1,6 +1,6 @@
 # 自动化测试工程
 
-针对 AI 用例管理平台的接口自动化与 UI 自动化测试，基于 pytest 驱动，使用 uv 管理依赖。
+针对 AI 用例管理平台的接口自动化与 UI 自动化测试，基于 pytest 驱动。
 
 ## 技术栈
 
@@ -8,17 +8,15 @@
 |---|---|---|
 | 接口自动化 | pytest + requests | 74 条用例，覆盖 6 大模块 |
 | UI 自动化 | pytest + Playwright（POM 模式） | 20 条用例，覆盖核心用户旅程 |
-| 报告 | Allure | 可视化测试报告，失败自动截图 |
-| 包管理 | uv | Python 依赖管理与虚拟环境 |
+| 报告 | pytest-html | 自包含 HTML 报告，失败自动截图 |
 
 ## 目录结构
 
 ```
 autotest/
 ├── conftest.py          # 全局 fixture：拉起隔离后端（临时库 + mock 模式）
-├── pyproject.toml       # uv 项目配置与依赖声明
-├── run_tests.sh         # 一键运行入口（Linux/macOS）
-├── run_tests.bat        # 一键运行入口（Windows）
+├── pytest.ini           # markers（smoke/regression）与默认参数
+├── run_tests.sh         # 一键运行入口
 ├── api/                 # 接口自动化
 │   ├── client.py        # ApiClient：HTTP 封装 + 业务流（导入→结构化→确认→生成轮询）
 │   ├── conftest.py      # project / confirmed_doc / completed_task 等数据 fixture
@@ -33,11 +31,10 @@ autotest/
 
 ```bash
 cd autotest
-./run_tests.sh api      # 仅接口自动化（约 3s）
-./run_tests.sh ui       # 仅 UI 自动化（约 30s）
-./run_tests.sh smoke    # 仅冒烟用例
-./run_tests.sh all      # 全量，报告在 reports/allure-report/
-./run_tests.sh allure   # 仅从已有结果生成 Allure 报告
+./run_tests.sh api     # 仅接口自动化（约 3s）
+./run_tests.sh ui      # 仅 UI 自动化（约 30s）
+./run_tests.sh smoke   # 仅冒烟用例
+./run_tests.sh all     # 全量，报告在 reports/
 ```
 
 Windows 使用 `run_tests.bat`，参数相同（api / ui / smoke / all）。
@@ -56,7 +53,7 @@ Windows 使用 `run_tests.bat`，参数相同（api / ui / smoke / all）。
   一律通过接口 fixture 准备，避免用例间的 UI 级联依赖。
 - **用例设计方法**：等价类（文件类型、非法参数）、边界值（名称 200/201 字符、分块最小长度）、
   判定表（生成策略 × 专项 Skill 组合）、状态迁移（草稿 pending → adopted/rejected/edited）。
-- **失败排障**：UI 用例失败自动截图到 `ui/artifacts/`，Allure 报告见 `reports/allure-report/index.html`。
+- **失败排障**：UI 用例失败自动截图到 `ui/artifacts/`，报告见 `reports/*.html`。
 
 ## 已知产物
 

@@ -56,10 +56,18 @@ def base_url(web_base_url):
     return web_base_url
 
 
+@pytest.fixture(autouse=True)
+def _seed_login(context, api):
+    """预置由测试后端真实签发的登录态。"""
+    context.add_init_script(
+        f"localStorage.setItem('aitc_auth', JSON.stringify({{token: '{api.token}', username: 'autotest-admin'}}))"
+    )
+
+
 @pytest.fixture(scope="session")
-def api(api_base_url) -> ApiClient:
+def api(api_base_url, auth_credentials) -> ApiClient:
     """直连后端的 API 客户端：用接口造数据，UI 只验证交互。"""
-    return ApiClient(api_base_url)
+    return ApiClient(api_base_url, *auth_credentials)
 
 
 @pytest.fixture

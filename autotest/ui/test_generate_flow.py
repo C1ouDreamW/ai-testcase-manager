@@ -15,6 +15,7 @@ def test_full_generate_and_adopt_flow(page, base_url, seeded_project):
     flow.goto_flow(seeded_project["id"])
 
     flow.import_text("登录模块 PRD", PRD)
+    flow.skip_design()
     flow.expect_confirm_step()
     assert flow.feature_rows().count() > 0
 

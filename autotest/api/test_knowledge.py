@@ -82,6 +82,24 @@ def test_search_identical_text_hits(client, project):
     assert hits[0]["score"] > 0.9
 
 
+def test_search_keyword_recall_and_match_field(client, project):
+    """混合检索：精确关键词（错误码）即使语义相似度低也应被 BM25 召回，且返回 match 来源。"""
+    client.create_knowledge_doc(
+        project["id"], "退款异常处理",
+        "# 退款模块\n## 异常处理\n退款接口异常时返回错误码 ERR_4003，需要人工介入处理并记录工单。",
+    )
+    resp = client.post(
+        f"/projects/{project['id']}/knowledge/search",
+        json={"query": "ERR_4003", "top_k": 3},
+    )
+    assert resp.status_code == 200
+    hits = resp.json()
+    assert len(hits) >= 1
+    top = hits[0]
+    assert "ERR_4003" in top["content"]
+    assert top["match"] in ("vector", "keyword", "both")
+
+
 def test_search_empty_kb_returns_empty(client, project):
     resp = client.post(
         f"/projects/{project['id']}/knowledge/search",
