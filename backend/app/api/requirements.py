@@ -19,7 +19,11 @@ from app.schemas import (
     RequirementItemUpdate,
     TestScopeUpdate,
 )
-from app.services.document_parser import DocumentParseError, parse_upload, title_from_filename
+from app.services.document_parser import (
+    DocumentParseError,
+    parse_upload,
+    title_from_filename,
+)
 from app.services.featurelist_service import export_featurelist, parse_featurelist
 from app.services.generation_service import confirm_requirements, structure_requirements
 from app.services.settings_service import get_project_runtime_config
@@ -32,11 +36,16 @@ router = APIRouter(
 )
 
 
-def _get_document(db: Session, project_id: int, document_id: int) -> RequirementDocument | None:
+def _get_document(
+    db: Session, project_id: int, document_id: int
+) -> RequirementDocument | None:
     return (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(RequirementDocument.id == document_id, RequirementDocument.project_id == project_id)
+        .filter(
+            RequirementDocument.id == document_id,
+            RequirementDocument.project_id == project_id,
+        )
         .first()
     )
 
@@ -55,7 +64,10 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
     docs = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(RequirementDocument.project_id == project_id, RequirementDocument.is_eval == False)
+        .filter(
+            RequirementDocument.project_id == project_id,
+            RequirementDocument.is_eval == False,
+        )
         .order_by(RequirementDocument.created_at.desc())
         .all()
     )
@@ -63,7 +75,9 @@ def list_documents(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=RequirementDocumentOut, status_code=201)
-async def create_document(project_id: int, data: RequirementDocumentCreate, db: Session = Depends(get_db)):
+async def create_document(
+    project_id: int, data: RequirementDocumentCreate, db: Session = Depends(get_db)
+):
     if not db.query(Project).get(project_id):
         raise HTTPException(404, "项目不存在")
 
@@ -111,11 +125,16 @@ async def upload_document(
 
 
 @router.post("/{document_id}/structure", response_model=RequirementDocumentOut)
-async def structure_document(project_id: int, document_id: int, db: Session = Depends(get_db)):
+async def structure_document(
+    project_id: int, document_id: int, db: Session = Depends(get_db)
+):
     doc = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(RequirementDocument.id == document_id, RequirementDocument.project_id == project_id)
+        .filter(
+            RequirementDocument.id == document_id,
+            RequirementDocument.project_id == project_id,
+        )
         .first()
     )
     if not doc:
@@ -143,11 +162,15 @@ def update_scope(
 
 
 @router.post("/{document_id}/scope/generate", response_model=RequirementDocumentOut)
-async def generate_scope(project_id: int, document_id: int, db: Session = Depends(get_db)):
+async def generate_scope(
+    project_id: int, document_id: int, db: Session = Depends(get_db)
+):
     doc = _get_document(db, project_id, document_id)
     if not doc:
         raise HTTPException(404, "需求文档不存在")
-    scope = await propose_test_scope(doc.raw_content, get_project_runtime_config(db, project_id))
+    scope = await propose_test_scope(
+        doc.raw_content, get_project_runtime_config(db, project_id)
+    )
     doc.test_scope = json.dumps(scope, ensure_ascii=False)
     db.commit()
     db.refresh(doc)
@@ -182,7 +205,9 @@ def export_document_featurelist(
     return StreamingResponse(BytesIO(content), media_type=media_type, headers=headers)
 
 
-@router.post("/featurelist/import", response_model=RequirementDocumentOut, status_code=201)
+@router.post(
+    "/featurelist/import", response_model=RequirementDocumentOut, status_code=201
+)
 async def import_featurelist(
     project_id: int,
     file: UploadFile = File(...),
@@ -210,22 +235,23 @@ async def import_featurelist(
     db.flush()
 
     for idx, item in enumerate(items_data):
-        db.add(RequirementItem(
-            document_id=doc.id,
-            module=item.get("module", ""),
-            feature=item.get("feature", ""),
-            description=item.get("description", ""),
-            acceptance_criteria=item.get("acceptance_criteria", ""),
-            constraints=item.get("constraints", ""),
-            priority=item.get("priority", "P1"),
-            sort_order=idx,
-            confirmed=False,
-        ))
+        db.add(
+            RequirementItem(
+                document_id=doc.id,
+                module=item.get("module", ""),
+                feature=item.get("feature", ""),
+                description=item.get("description", ""),
+                acceptance_criteria=item.get("acceptance_criteria", ""),
+                constraints=item.get("constraints", ""),
+                priority=item.get("priority", "P1"),
+                sort_order=idx,
+                confirmed=False,
+            )
+        )
 
     db.commit()
     db.refresh(doc)
     return doc
-
 
 
 @router.post("/{document_id}/confirm", response_model=RequirementDocumentOut)
@@ -238,7 +264,10 @@ def confirm_document(
     doc = (
         db.query(RequirementDocument)
         .options(joinedload(RequirementDocument.items))
-        .filter(RequirementDocument.id == document_id, RequirementDocument.project_id == project_id)
+        .filter(
+            RequirementDocument.id == document_id,
+            RequirementDocument.project_id == project_id,
+        )
         .first()
     )
     if not doc:
@@ -310,7 +339,9 @@ def update_item(
 
 
 @router.delete("/{document_id}/items/{item_id}", status_code=204)
-def delete_item(project_id: int, document_id: int, item_id: int, db: Session = Depends(get_db)):
+def delete_item(
+    project_id: int, document_id: int, item_id: int, db: Session = Depends(get_db)
+):
     item = (
         db.query(RequirementItem)
         .join(RequirementDocument)

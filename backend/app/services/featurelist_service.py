@@ -28,9 +28,15 @@ MEDIA_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # ---------------------------------------------------------------- Markdown
 
+
 def _encode_md_cell(value: str) -> str:
     text = (value or "").strip()
-    return text.replace("\\", "\\\\").replace("|", "\\|").replace("\r\n", "\n").replace("\n", "<br>")
+    return (
+        text.replace("\\", "\\\\")
+        .replace("|", "\\|")
+        .replace("\r\n", "\n")
+        .replace("\n", "<br>")
+    )
 
 
 def _decode_md_cell(value: str) -> str:
@@ -67,7 +73,9 @@ def _split_md_row(line: str) -> list[str]:
 
 
 def _is_separator_row(cells: list[str]) -> bool:
-    return bool(cells) and all(set(c.strip()) <= {"-", ":", " "} and "-" in c for c in cells)
+    return bool(cells) and all(
+        set(c.strip()) <= {"-", ":", " "} and "-" in c for c in cells
+    )
 
 
 def export_featurelist_md(title: str, items: list[dict]) -> str:
@@ -100,7 +108,11 @@ def parse_featurelist_md(data: bytes) -> list[dict]:
         raise DocumentParseError("未找到 Markdown 表格，请使用「导出清单」得到的格式")
 
     header_cells = [c.strip() for c in _split_md_row(table_lines[0])]
-    col_index = {HEADER_TO_FIELD[name]: i for i, name in enumerate(header_cells) if name in HEADER_TO_FIELD}
+    col_index = {
+        HEADER_TO_FIELD[name]: i
+        for i, name in enumerate(header_cells)
+        if name in HEADER_TO_FIELD
+    }
     if "feature" not in col_index:
         raise DocumentParseError("FeatureList 缺少「功能点」列")
 
@@ -127,6 +139,7 @@ def parse_featurelist_md(data: bytes) -> list[dict]:
 
 
 # ---------------------------------------------------------------- Excel
+
 
 def export_featurelist_xlsx(title: str, items: list[dict]) -> bytes:
     from openpyxl import Workbook
@@ -171,12 +184,17 @@ def parse_featurelist_xlsx(data: bytes) -> list[dict]:
         raise DocumentParseError("FeatureList 为空")
 
     header = [str(h).strip() if h is not None else "" for h in rows[0]]
-    col_index = {HEADER_TO_FIELD[name]: i for i, name in enumerate(header) if name in HEADER_TO_FIELD}
+    col_index = {
+        HEADER_TO_FIELD[name]: i
+        for i, name in enumerate(header)
+        if name in HEADER_TO_FIELD
+    }
     if "feature" not in col_index:
         raise DocumentParseError("FeatureList 缺少「功能点」列")
 
     items: list[dict] = []
     for row in rows[1:]:
+
         def cell(field: str) -> str:
             idx = col_index.get(field)
             if idx is None or idx >= len(row):
@@ -196,6 +214,7 @@ def parse_featurelist_xlsx(data: bytes) -> list[dict]:
 
 # ---------------------------------------------------------------- shared / dispatch
 
+
 def _build_item(cell) -> dict:
     priority = cell("priority") or "P1"
     if priority not in ("P0", "P1", "P2"):
@@ -210,7 +229,9 @@ def _build_item(cell) -> dict:
     }
 
 
-def export_featurelist(title: str, items: list[dict], fmt: str = "xlsx") -> tuple[bytes, str, str]:
+def export_featurelist(
+    title: str, items: list[dict], fmt: str = "xlsx"
+) -> tuple[bytes, str, str]:
     """返回 (内容字节, media_type, 文件扩展名)。"""
     if fmt == "md":
         text = export_featurelist_md(title, items)

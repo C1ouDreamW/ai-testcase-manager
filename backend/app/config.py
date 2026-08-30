@@ -6,7 +6,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file="../.env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file="../.env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     llm_api_key: str = ""
     llm_base_url: str = "https://api.deepseek.com/v1"

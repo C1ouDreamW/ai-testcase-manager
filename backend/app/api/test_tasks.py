@@ -54,7 +54,9 @@ def _get_batch(db: Session, project_id: int, task_id: int, batch_id: int) -> Tes
     return batch
 
 
-def _resolve_case_ids_by_selection(db: Session, project_id: int, case_ids: list[int]) -> list[int]:
+def _resolve_case_ids_by_selection(
+    db: Session, project_id: int, case_ids: list[int]
+) -> list[int]:
     rows = (
         db.query(TestCase.id)
         .filter(TestCase.project_id == project_id, TestCase.id.in_(case_ids))
@@ -117,7 +119,9 @@ def get_task(project_id: int, task_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{task_id}", response_model=TestTaskOut)
-def update_task(project_id: int, task_id: int, data: TestTaskUpdate, db: Session = Depends(get_db)):
+def update_task(
+    project_id: int, task_id: int, data: TestTaskUpdate, db: Session = Depends(get_db)
+):
     task = _get_task(db, project_id, task_id)
     for field, value in data.model_dump(exclude_unset=True, exclude_none=True).items():
         setattr(task, field, value)
@@ -144,7 +148,13 @@ def list_defects(
     _get_task(db, project_id, task_id)
     results = ["failed", "blocked"] if include_blocked else ["failed"]
     rows = (
-        db.query(TestBatchCase, TestBatch, TestCase, RequirementItem.module, RequirementItem.feature)
+        db.query(
+            TestBatchCase,
+            TestBatch,
+            TestCase,
+            RequirementItem.module,
+            RequirementItem.feature,
+        )
         .join(TestBatch, TestBatchCase.batch_id == TestBatch.id)
         .join(TestCase, TestBatchCase.case_id == TestCase.id)
         .outerjoin(RequirementItem, TestCase.requirement_item_id == RequirementItem.id)
@@ -172,10 +182,14 @@ def list_defects(
 
 
 @router.post("/{task_id}/batches", response_model=TestTaskOut)
-def create_batch(project_id: int, task_id: int, data: TestBatchCreate, db: Session = Depends(get_db)):
+def create_batch(
+    project_id: int, task_id: int, data: TestBatchCreate, db: Session = Depends(get_db)
+):
     task = _get_task(db, project_id, task_id)
     if data.copy_from_batch_id is not None:
-        source = next((b for b in task.batches if b.id == data.copy_from_batch_id), None)
+        source = next(
+            (b for b in task.batches if b.id == data.copy_from_batch_id), None
+        )
         if not source:
             raise HTTPException(400, "要复用的批次不存在")
         case_ids = [bc.case_id for bc in source.batch_cases]
@@ -193,14 +207,20 @@ def create_batch(project_id: int, task_id: int, data: TestBatchCreate, db: Sessi
 
 
 @router.get("/{task_id}/batches/{batch_id}", response_model=TestBatchDetailOut)
-def get_batch(project_id: int, task_id: int, batch_id: int, db: Session = Depends(get_db)):
+def get_batch(
+    project_id: int, task_id: int, batch_id: int, db: Session = Depends(get_db)
+):
     batch = _get_batch(db, project_id, task_id, batch_id)
     rows = (
-        db.query(TestBatchCase, TestCase, RequirementItem.module, RequirementItem.feature)
+        db.query(
+            TestBatchCase, TestCase, RequirementItem.module, RequirementItem.feature
+        )
         .join(TestCase, TestBatchCase.case_id == TestCase.id)
         .outerjoin(RequirementItem, TestCase.requirement_item_id == RequirementItem.id)
         .filter(TestBatchCase.batch_id == batch_id)
-        .order_by(RequirementItem.module, RequirementItem.feature, TestCase.created_at.desc())
+        .order_by(
+            RequirementItem.module, RequirementItem.feature, TestCase.created_at.desc()
+        )
         .all()
     )
     detail = TestBatchDetailOut.model_validate(batch)
@@ -229,7 +249,11 @@ def get_batch(project_id: int, task_id: int, batch_id: int, db: Session = Depend
 
 @router.patch("/{task_id}/batches/{batch_id}", response_model=TestBatchOut)
 def update_batch(
-    project_id: int, task_id: int, batch_id: int, data: TestBatchUpdate, db: Session = Depends(get_db)
+    project_id: int,
+    task_id: int,
+    batch_id: int,
+    data: TestBatchUpdate,
+    db: Session = Depends(get_db),
 ):
     batch = _get_batch(db, project_id, task_id, batch_id)
     for field, value in data.model_dump(exclude_unset=True, exclude_none=True).items():
@@ -240,7 +264,9 @@ def update_batch(
 
 
 @router.delete("/{task_id}/batches/{batch_id}", status_code=204)
-def delete_batch(project_id: int, task_id: int, batch_id: int, db: Session = Depends(get_db)):
+def delete_batch(
+    project_id: int, task_id: int, batch_id: int, db: Session = Depends(get_db)
+):
     batch = _get_batch(db, project_id, task_id, batch_id)
     if len(batch.task.batches) <= 1:
         raise HTTPException(400, "任务至少保留一个批次，如需删除请直接删除任务")
@@ -248,7 +274,9 @@ def delete_batch(project_id: int, task_id: int, batch_id: int, db: Session = Dep
     db.commit()
 
 
-def _apply_mark(bc: TestBatchCase, result: str, note: str = "", defect_ref: str = "") -> None:
+def _apply_mark(
+    bc: TestBatchCase, result: str, note: str = "", defect_ref: str = ""
+) -> None:
     bc.result = result
     bc.note = note
     bc.defect_ref = defect_ref
@@ -257,7 +285,11 @@ def _apply_mark(bc: TestBatchCase, result: str, note: str = "", defect_ref: str 
 
 @router.patch("/{task_id}/batches/{batch_id}/cases/batch", response_model=TestBatchOut)
 def batch_mark_cases(
-    project_id: int, task_id: int, batch_id: int, data: BatchCaseBatchMark, db: Session = Depends(get_db)
+    project_id: int,
+    task_id: int,
+    batch_id: int,
+    data: BatchCaseBatchMark,
+    db: Session = Depends(get_db),
 ):
     batch = _get_batch(db, project_id, task_id, batch_id)
     batch_cases = {bc.id: bc for bc in batch.batch_cases}
@@ -273,7 +305,9 @@ def batch_mark_cases(
     return TestBatchOut.model_validate(batch)
 
 
-@router.patch("/{task_id}/batches/{batch_id}/cases/{batch_case_id}", response_model=TestBatchOut)
+@router.patch(
+    "/{task_id}/batches/{batch_id}/cases/{batch_case_id}", response_model=TestBatchOut
+)
 def mark_case(
     project_id: int,
     task_id: int,
@@ -294,7 +328,11 @@ def mark_case(
 
 @router.post("/{task_id}/batches/{batch_id}/cases", response_model=TestBatchOut)
 def add_cases(
-    project_id: int, task_id: int, batch_id: int, data: BatchCasesAdd, db: Session = Depends(get_db)
+    project_id: int,
+    task_id: int,
+    batch_id: int,
+    data: BatchCasesAdd,
+    db: Session = Depends(get_db),
 ):
     batch = _get_batch(db, project_id, task_id, batch_id)
     valid_ids = set(_resolve_case_ids_by_selection(db, project_id, data.case_ids))
@@ -306,9 +344,15 @@ def add_cases(
     return TestBatchOut.model_validate(batch)
 
 
-@router.delete("/{task_id}/batches/{batch_id}/cases/{batch_case_id}", response_model=TestBatchOut)
+@router.delete(
+    "/{task_id}/batches/{batch_id}/cases/{batch_case_id}", response_model=TestBatchOut
+)
 def remove_case(
-    project_id: int, task_id: int, batch_id: int, batch_case_id: int, db: Session = Depends(get_db)
+    project_id: int,
+    task_id: int,
+    batch_id: int,
+    batch_case_id: int,
+    db: Session = Depends(get_db),
 ):
     batch = _get_batch(db, project_id, task_id, batch_id)
     bc = next((c for c in batch.batch_cases if c.id == batch_case_id), None)

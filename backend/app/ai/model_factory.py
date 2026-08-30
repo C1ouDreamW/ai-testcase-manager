@@ -4,7 +4,10 @@ import httpx
 from langchain_openai import ChatOpenAI
 
 from app.services.llm import LLMCallError, _extract_provider_detail
-from app.services.model_endpoint_security import ModelEndpointError, validate_model_base_url
+from app.services.model_endpoint_security import (
+    ModelEndpointError,
+    validate_model_base_url,
+)
 from app.services.settings_service import RuntimeModelConfig
 
 
@@ -103,7 +106,9 @@ def normalize_chat_error(exc: Exception, purpose: ModelPurpose) -> LLMCallError:
     detail = _extract_provider_detail(exc)
     suffix = f"：{detail}" if detail else ""
     if code == 401:
-        return LLMCallError(f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试{suffix}")
+        return LLMCallError(
+            f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试{suffix}"
+        )
     if code == 403:
         return LLMCallError(
             f"{kind}无权限或余额不足（HTTP 403），请确认 Key、模型是否已开通及账户余额{suffix}"
@@ -111,7 +116,11 @@ def normalize_chat_error(exc: Exception, purpose: ModelPurpose) -> LLMCallError:
     if code == 429:
         return LLMCallError(f"{kind}调用触发限流（429），请稍后重试{suffix}")
     if code == 404:
-        return LLMCallError(f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置{suffix}")
+        return LLMCallError(
+            f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置{suffix}"
+        )
     if code:
-        return LLMCallError(f"{kind}调用失败（HTTP {code}），请检查「设置」页配置{suffix}")
+        return LLMCallError(
+            f"{kind}调用失败（HTTP {code}），请检查「设置」页配置{suffix}"
+        )
     return LLMCallError(f"无法连接{kind}服务，请检查接口地址与网络：{exc}")

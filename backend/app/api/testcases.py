@@ -31,14 +31,21 @@ def _serialize_testcase(
 
 def _query_testcases(db: Session, project_id: int | None = None):
     q = (
-        db.query(TestCase, RequirementItem.module, RequirementItem.feature, Project.name)
+        db.query(
+            TestCase, RequirementItem.module, RequirementItem.feature, Project.name
+        )
         .join(Project, TestCase.project_id == Project.id)
         .outerjoin(RequirementItem, TestCase.requirement_item_id == RequirementItem.id)
         .filter(Project.user_id == current_user_id(db), Project.is_eval == False)
     )
     if project_id is not None:
         q = q.filter(TestCase.project_id == project_id)
-    return q.order_by(Project.name, RequirementItem.module, RequirementItem.feature, TestCase.created_at.desc())
+    return q.order_by(
+        Project.name,
+        RequirementItem.module,
+        RequirementItem.feature,
+        TestCase.created_at.desc(),
+    )
 
 
 @router.get("", response_model=list[TestCaseOut])
@@ -47,22 +54,24 @@ def list_all_testcases(
     db: Session = Depends(get_db),
 ):
     rows = _query_testcases(db, project_id).all()
-    return [_serialize_testcase(tc, module, feature, project_name) for tc, module, feature, project_name in rows]
+    return [
+        _serialize_testcase(tc, module, feature, project_name)
+        for tc, module, feature, project_name in rows
+    ]
 
 
 @project_router.get("", response_model=list[TestCaseOut])
 def list_testcases(project_id: int, db: Session = Depends(get_db)):
     rows = _query_testcases(db, project_id).all()
-    return [_serialize_testcase(tc, module, feature, project_name) for tc, module, feature, project_name in rows]
+    return [
+        _serialize_testcase(tc, module, feature, project_name)
+        for tc, module, feature, project_name in rows
+    ]
 
 
 @project_router.get("/{case_id}", response_model=TestCaseOut)
 def get_testcase(project_id: int, case_id: int, db: Session = Depends(get_db)):
-    row = (
-        _query_testcases(db, project_id)
-        .filter(TestCase.id == case_id)
-        .first()
-    )
+    row = _query_testcases(db, project_id).filter(TestCase.id == case_id).first()
     if not row:
         raise HTTPException(404, "用例不存在")
     tc, module, feature, project_name = row
@@ -76,11 +85,7 @@ def update_testcase(
     data: TestCaseUpdate,
     db: Session = Depends(get_db),
 ):
-    row = (
-        _query_testcases(db, project_id)
-        .filter(TestCase.id == case_id)
-        .first()
-    )
+    row = _query_testcases(db, project_id).filter(TestCase.id == case_id).first()
     if not row:
         raise HTTPException(404, "用例不存在")
 
@@ -95,7 +100,11 @@ def update_testcase(
     if module_value is not None or feature_value is not None:
         if not tc.requirement_item_id:
             raise HTTPException(400, "用例未关联需求项，无法修改目录")
-        item = db.query(RequirementItem).filter(RequirementItem.id == tc.requirement_item_id).first()
+        item = (
+            db.query(RequirementItem)
+            .filter(RequirementItem.id == tc.requirement_item_id)
+            .first()
+        )
         if not item:
             raise HTTPException(400, "用例未关联需求项，无法修改目录")
         if module_value is not None:
@@ -106,11 +115,7 @@ def update_testcase(
     db.commit()
     db.refresh(tc)
 
-    row = (
-        _query_testcases(db, project_id)
-        .filter(TestCase.id == case_id)
-        .first()
-    )
+    row = _query_testcases(db, project_id).filter(TestCase.id == case_id).first()
     tc, module, feature, project_name = row
     return _serialize_testcase(tc, module, feature, project_name)
 
@@ -127,8 +132,13 @@ def rename_catalog(
 
     q = (
         db.query(RequirementItem)
-        .join(RequirementDocument, RequirementItem.document_id == RequirementDocument.id)
-        .filter(RequirementDocument.project_id == project_id, RequirementItem.module == data.old_module)
+        .join(
+            RequirementDocument, RequirementItem.document_id == RequirementDocument.id
+        )
+        .filter(
+            RequirementDocument.project_id == project_id,
+            RequirementItem.module == data.old_module,
+        )
     )
     if data.type == "feature":
         q = q.filter(RequirementItem.feature == data.old_feature)
@@ -149,7 +159,11 @@ def rename_catalog(
 
 @project_router.delete("/{case_id}", status_code=204)
 def delete_testcase(project_id: int, case_id: int, db: Session = Depends(get_db)):
-    tc = db.query(TestCase).filter(TestCase.id == case_id, TestCase.project_id == project_id).first()
+    tc = (
+        db.query(TestCase)
+        .filter(TestCase.id == case_id, TestCase.project_id == project_id)
+        .first()
+    )
     if not tc:
         raise HTTPException(404, "用例不存在")
     db.delete(tc)

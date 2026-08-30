@@ -2,12 +2,17 @@ import contextvars
 
 import httpx
 
-from app.services.model_endpoint_security import ModelEndpointError, validate_model_base_url
+from app.services.model_endpoint_security import (
+    ModelEndpointError,
+    validate_model_base_url,
+)
 from app.services.settings_service import RuntimeModelConfig
 
 # 按异步上下文累计 token 用量：LangGraph 生成工作流开始时创建计数器，
 # 期间所有 LLM 调用（生成 + 专项 + Judge）都会累加到同一个计数器。
-_token_counter: contextvars.ContextVar[dict | None] = contextvars.ContextVar("token_counter", default=None)
+_token_counter: contextvars.ContextVar[dict | None] = contextvars.ContextVar(
+    "token_counter", default=None
+)
 
 
 def start_token_tracking() -> dict:
@@ -39,15 +44,24 @@ def record_token_usage(usage: dict | None) -> None:
         return
     normalized = {
         "prompt_tokens": usage.get("prompt_tokens", usage.get("input_tokens", 0)) or 0,
-        "completion_tokens": usage.get("completion_tokens", usage.get("output_tokens", 0)) or 0,
+        "completion_tokens": usage.get(
+            "completion_tokens", usage.get("output_tokens", 0)
+        )
+        or 0,
     }
     _record_usage(normalized)
 
 
-def _resolve_chat_settings(config: RuntimeModelConfig, use_eval_model: bool) -> tuple[str, str, str]:
+def _resolve_chat_settings(
+    config: RuntimeModelConfig, use_eval_model: bool
+) -> tuple[str, str, str]:
     """返回 (base_url, api_key, model)。评测三项全部留空时整体复用生成配置。"""
     if use_eval_model:
-        eval_config = (config.eval_llm_base_url, config.eval_llm_api_key, config.eval_llm_model)
+        eval_config = (
+            config.eval_llm_base_url,
+            config.eval_llm_api_key,
+            config.eval_llm_model,
+        )
         if any(eval_config):
             return eval_config
     return config.llm_base_url, config.llm_api_key, config.llm_model
@@ -112,7 +126,9 @@ def _friendly_error(exc: Exception, kind: str) -> LLMCallError:
     suffix = f"：{detail}" if detail else ""
     if code is not None:
         if code == 401:
-            return LLMCallError(f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试{suffix}")
+            return LLMCallError(
+                f"{kind}的 API Key 无效或已过期，请到「设置」页更新后重试{suffix}"
+            )
         if code == 403:
             return LLMCallError(
                 f"{kind}无权限或余额不足（HTTP 403），请确认 Key、模型是否已开通及账户余额{suffix}"
@@ -120,8 +136,12 @@ def _friendly_error(exc: Exception, kind: str) -> LLMCallError:
         if code == 429:
             return LLMCallError(f"{kind}调用触发限流（429），请稍后重试{suffix}")
         if code == 404:
-            return LLMCallError(f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置{suffix}")
-        return LLMCallError(f"{kind}调用失败（HTTP {code}），请检查「设置」页配置{suffix}")
+            return LLMCallError(
+                f"{kind}的接口地址或模型名有误（404），请检查「设置」页配置{suffix}"
+            )
+        return LLMCallError(
+            f"{kind}调用失败（HTTP {code}），请检查「设置」页配置{suffix}"
+        )
     return LLMCallError(f"无法连接{kind}服务，请检查接口地址与网络：{exc}")
 
 
@@ -187,7 +207,9 @@ async def test_model_connection(config: RuntimeModelConfig, target: str) -> dict
         model = config.embedding_model
         kind = "Embedding 模型"
     elif target == "rerank":
-        if not any((config.rerank_base_url, config.rerank_api_key, config.rerank_model)):
+        if not any(
+            (config.rerank_base_url, config.rerank_api_key, config.rerank_model)
+        ):
             return {
                 "ok": True,
                 "message": "Rerank 模型未配置，知识检索将只做混合检索融合排序",
@@ -266,22 +288,27 @@ async def test_model_connection(config: RuntimeModelConfig, target: str) -> dict
         path = "/chat/completions"
         payload = {
             "model": model,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": "请回答图片中是否只有一个像素，只需回答是或否。"},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": (
-                                "data:image/png;base64,"
-                                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0"
-                                "lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-                            )
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "请回答图片中是否只有一个像素，只需回答是或否。",
                         },
-                    },
-                ],
-            }],
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": (
+                                    "data:image/png;base64,"
+                                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0"
+                                    "lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                                )
+                            },
+                        },
+                    ],
+                }
+            ],
             "max_tokens": 8,
             "temperature": 0,
         }

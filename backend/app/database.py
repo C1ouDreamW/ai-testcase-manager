@@ -6,7 +6,9 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+connect_args = (
+    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+)
 engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -29,15 +31,32 @@ def get_db(request: Request):
 
 
 def init_db():
-    from app.models import agent, design, evaluation, execution, generation, knowledge, project, requirement, system_config, testcase, user  # noqa: F401
+    from app.models import (
+        agent,
+        design,
+        evaluation,
+        execution,
+        generation,
+        knowledge,
+        project,
+        requirement,
+        system_config,
+        testcase,
+        user,
+    )  # noqa: F401
     from app.models.user import User
     from app.services.auth_service import ensure_bootstrap_admin
-    from app.services.settings_service import ensure_bootstrap_admin_config, get_or_create_config
+    from app.services.settings_service import (
+        ensure_bootstrap_admin_config,
+        get_or_create_config,
+    )
 
     if settings.database_url.startswith("sqlite"):
         database_path = engine.url.database
         if database_path and database_path != ":memory:":
-            Path(database_path).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+            Path(database_path).expanduser().resolve().parent.mkdir(
+                parents=True, exist_ok=True
+            )
     Base.metadata.create_all(bind=engine)
 
     db = SessionLocal()
@@ -58,19 +77,29 @@ def _migrate_schema(admin_user_id: int):
         cols = conn.exec_driver_sql("PRAGMA table_info(generation_tasks)").fetchall()
         col_names = {row[1] for row in cols}
         if "strategy_config" not in col_names:
-            conn.exec_driver_sql("ALTER TABLE generation_tasks ADD COLUMN strategy_config TEXT DEFAULT ''")
+            conn.exec_driver_sql(
+                "ALTER TABLE generation_tasks ADD COLUMN strategy_config TEXT DEFAULT ''"
+            )
             conn.commit()
         if "tokens_used" not in col_names:
-            conn.exec_driver_sql("ALTER TABLE generation_tasks ADD COLUMN tokens_used INTEGER DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE generation_tasks ADD COLUMN tokens_used INTEGER DEFAULT 0"
+            )
             conn.commit()
         if "is_eval" not in col_names:
-            conn.exec_driver_sql("ALTER TABLE generation_tasks ADD COLUMN is_eval BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE generation_tasks ADD COLUMN is_eval BOOLEAN DEFAULT 0"
+            )
             conn.commit()
         if "stage" not in col_names:
-            conn.exec_driver_sql("ALTER TABLE generation_tasks ADD COLUMN stage VARCHAR(100) DEFAULT ''")
+            conn.exec_driver_sql(
+                "ALTER TABLE generation_tasks ADD COLUMN stage VARCHAR(100) DEFAULT ''"
+            )
             conn.commit()
         if "knowledge_refs" not in col_names:
-            conn.exec_driver_sql("ALTER TABLE generation_tasks ADD COLUMN knowledge_refs TEXT DEFAULT ''")
+            conn.exec_driver_sql(
+                "ALTER TABLE generation_tasks ADD COLUMN knowledge_refs TEXT DEFAULT ''"
+            )
             conn.commit()
         if "pause_requested" not in col_names:
             conn.exec_driver_sql(
@@ -99,25 +128,55 @@ def _migrate_schema(admin_user_id: int):
             "SELECT name FROM sqlite_master WHERE type='table' AND name='eval_runs'"
         ).fetchall()
         if eval_run_tables:
-            eval_run_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(eval_runs)").fetchall()}
+            eval_run_cols = {
+                row[1]
+                for row in conn.exec_driver_sql(
+                    "PRAGMA table_info(eval_runs)"
+                ).fetchall()
+            }
             if "stage" not in eval_run_cols:
-                conn.exec_driver_sql("ALTER TABLE eval_runs ADD COLUMN stage VARCHAR(100) DEFAULT ''")
+                conn.exec_driver_sql(
+                    "ALTER TABLE eval_runs ADD COLUMN stage VARCHAR(100) DEFAULT ''"
+                )
                 conn.commit()
 
-        draft_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(generated_case_drafts)").fetchall()}
+        draft_cols = {
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(generated_case_drafts)"
+            ).fetchall()
+        }
         if "is_smoke" not in draft_cols:
-            conn.exec_driver_sql("ALTER TABLE generated_case_drafts ADD COLUMN is_smoke BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE generated_case_drafts ADD COLUMN is_smoke BOOLEAN DEFAULT 0"
+            )
             conn.commit()
         if "was_edited" not in draft_cols:
-            conn.exec_driver_sql("ALTER TABLE generated_case_drafts ADD COLUMN was_edited BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE generated_case_drafts ADD COLUMN was_edited BOOLEAN DEFAULT 0"
+            )
             # 存量数据：当前状态为 edited 的草稿补标
-            conn.exec_driver_sql("UPDATE generated_case_drafts SET was_edited = 1 WHERE review_status = 'edited'")
+            conn.exec_driver_sql(
+                "UPDATE generated_case_drafts SET was_edited = 1 WHERE review_status = 'edited'"
+            )
             conn.commit()
         for col, ddl in [
-            ("reject_reason", "ALTER TABLE generated_case_drafts ADD COLUMN reject_reason VARCHAR(200) DEFAULT ''"),
-            ("judge_score", "ALTER TABLE generated_case_drafts ADD COLUMN judge_score FLOAT"),
-            ("judge_issues", "ALTER TABLE generated_case_drafts ADD COLUMN judge_issues TEXT DEFAULT ''"),
-            ("generation_key", "ALTER TABLE generated_case_drafts ADD COLUMN generation_key VARCHAR(160)"),
+            (
+                "reject_reason",
+                "ALTER TABLE generated_case_drafts ADD COLUMN reject_reason VARCHAR(200) DEFAULT ''",
+            ),
+            (
+                "judge_score",
+                "ALTER TABLE generated_case_drafts ADD COLUMN judge_score FLOAT",
+            ),
+            (
+                "judge_issues",
+                "ALTER TABLE generated_case_drafts ADD COLUMN judge_issues TEXT DEFAULT ''",
+            ),
+            (
+                "generation_key",
+                "ALTER TABLE generated_case_drafts ADD COLUMN generation_key VARCHAR(160)",
+            ),
         ]:
             if col not in draft_cols:
                 conn.exec_driver_sql(ddl)
@@ -128,20 +187,61 @@ def _migrate_schema(admin_user_id: int):
         )
         conn.commit()
 
-        config_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(system_config)").fetchall()}
+        config_cols = {
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(system_config)"
+            ).fetchall()
+        }
         for col, ddl in [
-            ("eval_llm_api_key", "ALTER TABLE system_config ADD COLUMN eval_llm_api_key VARCHAR(500) DEFAULT ''"),
-            ("eval_llm_base_url", "ALTER TABLE system_config ADD COLUMN eval_llm_base_url VARCHAR(500) DEFAULT ''"),
-            ("eval_llm_model", "ALTER TABLE system_config ADD COLUMN eval_llm_model VARCHAR(100) DEFAULT ''"),
-            ("vision_api_key", "ALTER TABLE system_config ADD COLUMN vision_api_key VARCHAR(500) DEFAULT ''"),
-            ("vision_base_url", "ALTER TABLE system_config ADD COLUMN vision_base_url VARCHAR(500) DEFAULT ''"),
-            ("vision_model", "ALTER TABLE system_config ADD COLUMN vision_model VARCHAR(100) DEFAULT ''"),
-            ("embedding_api_key", "ALTER TABLE system_config ADD COLUMN embedding_api_key VARCHAR(500) DEFAULT ''"),
-            ("embedding_base_url", "ALTER TABLE system_config ADD COLUMN embedding_base_url VARCHAR(500) DEFAULT ''"),
-            ("embedding_model", "ALTER TABLE system_config ADD COLUMN embedding_model VARCHAR(100) DEFAULT ''"),
-            ("rerank_api_key", "ALTER TABLE system_config ADD COLUMN rerank_api_key VARCHAR(500) DEFAULT ''"),
-            ("rerank_base_url", "ALTER TABLE system_config ADD COLUMN rerank_base_url VARCHAR(500) DEFAULT ''"),
-            ("rerank_model", "ALTER TABLE system_config ADD COLUMN rerank_model VARCHAR(100) DEFAULT ''"),
+            (
+                "eval_llm_api_key",
+                "ALTER TABLE system_config ADD COLUMN eval_llm_api_key VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "eval_llm_base_url",
+                "ALTER TABLE system_config ADD COLUMN eval_llm_base_url VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "eval_llm_model",
+                "ALTER TABLE system_config ADD COLUMN eval_llm_model VARCHAR(100) DEFAULT ''",
+            ),
+            (
+                "vision_api_key",
+                "ALTER TABLE system_config ADD COLUMN vision_api_key VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "vision_base_url",
+                "ALTER TABLE system_config ADD COLUMN vision_base_url VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "vision_model",
+                "ALTER TABLE system_config ADD COLUMN vision_model VARCHAR(100) DEFAULT ''",
+            ),
+            (
+                "embedding_api_key",
+                "ALTER TABLE system_config ADD COLUMN embedding_api_key VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "embedding_base_url",
+                "ALTER TABLE system_config ADD COLUMN embedding_base_url VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "embedding_model",
+                "ALTER TABLE system_config ADD COLUMN embedding_model VARCHAR(100) DEFAULT ''",
+            ),
+            (
+                "rerank_api_key",
+                "ALTER TABLE system_config ADD COLUMN rerank_api_key VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "rerank_base_url",
+                "ALTER TABLE system_config ADD COLUMN rerank_base_url VARCHAR(500) DEFAULT ''",
+            ),
+            (
+                "rerank_model",
+                "ALTER TABLE system_config ADD COLUMN rerank_model VARCHAR(100) DEFAULT ''",
+            ),
         ]:
             if config_cols and col not in config_cols:
                 conn.exec_driver_sql(ddl)
@@ -181,24 +281,48 @@ def _migrate_schema(admin_user_id: int):
             )
             conn.commit()
 
-        report_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(quality_reports)").fetchall()}
+        report_cols = {
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(quality_reports)"
+            ).fetchall()
+        }
         for col, ddl in [
-            ("avg_judge_score", "ALTER TABLE quality_reports ADD COLUMN avg_judge_score FLOAT"),
-            ("hallucination_count", "ALTER TABLE quality_reports ADD COLUMN hallucination_count INTEGER DEFAULT 0"),
-            ("duplicate_count", "ALTER TABLE quality_reports ADD COLUMN duplicate_count INTEGER DEFAULT 0"),
+            (
+                "avg_judge_score",
+                "ALTER TABLE quality_reports ADD COLUMN avg_judge_score FLOAT",
+            ),
+            (
+                "hallucination_count",
+                "ALTER TABLE quality_reports ADD COLUMN hallucination_count INTEGER DEFAULT 0",
+            ),
+            (
+                "duplicate_count",
+                "ALTER TABLE quality_reports ADD COLUMN duplicate_count INTEGER DEFAULT 0",
+            ),
         ]:
             if col not in report_cols:
                 conn.exec_driver_sql(ddl)
                 conn.commit()
 
-        tc_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(testcases)").fetchall()}
+        tc_cols = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(testcases)").fetchall()
+        }
         if "is_smoke" not in tc_cols:
-            conn.exec_driver_sql("ALTER TABLE testcases ADD COLUMN is_smoke BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE testcases ADD COLUMN is_smoke BOOLEAN DEFAULT 0"
+            )
             conn.commit()
 
-        project_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(projects)").fetchall()}
+        project_cols = {
+            row[1]
+            for row in conn.exec_driver_sql("PRAGMA table_info(projects)").fetchall()
+        }
         if "is_eval" not in project_cols:
-            conn.exec_driver_sql("ALTER TABLE projects ADD COLUMN is_eval BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE projects ADD COLUMN is_eval BOOLEAN DEFAULT 0"
+            )
             conn.commit()
         if "user_id" not in project_cols:
             conn.exec_driver_sql("ALTER TABLE projects ADD COLUMN user_id INTEGER")
@@ -216,7 +340,9 @@ def _migrate_schema(admin_user_id: int):
         ).scalar_one()
         if null_owner_count:
             raise RuntimeError("项目归属迁移失败：仍有项目未关联用户")
-        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_projects_user_id ON projects (user_id)")
+        conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_projects_user_id ON projects (user_id)"
+        )
         conn.exec_driver_sql(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_projects_user_eval "
             "ON projects (user_id) WHERE is_eval = 1"
@@ -228,15 +354,29 @@ def _migrate_schema(admin_user_id: int):
         conn.exec_driver_sql("DROP TABLE IF EXISTS test_runs")
         conn.commit()
 
-        doc_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(requirement_documents)").fetchall()}
+        doc_cols = {
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(requirement_documents)"
+            ).fetchall()
+        }
         if "test_scope" not in doc_cols:
-            conn.exec_driver_sql("ALTER TABLE requirement_documents ADD COLUMN test_scope TEXT DEFAULT ''")
+            conn.exec_driver_sql(
+                "ALTER TABLE requirement_documents ADD COLUMN test_scope TEXT DEFAULT ''"
+            )
             conn.commit()
         if "is_eval" not in doc_cols:
-            conn.exec_driver_sql("ALTER TABLE requirement_documents ADD COLUMN is_eval BOOLEAN DEFAULT 0")
+            conn.exec_driver_sql(
+                "ALTER TABLE requirement_documents ADD COLUMN is_eval BOOLEAN DEFAULT 0"
+            )
             conn.commit()
 
-        item_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(requirement_items)").fetchall()}
+        item_cols = {
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(requirement_items)"
+            ).fetchall()
+        }
         if "source_type" not in item_cols:
             conn.exec_driver_sql(
                 "ALTER TABLE requirement_items ADD COLUMN source_type VARCHAR(20) DEFAULT 'requirement'"
@@ -249,7 +389,10 @@ def _migrate_schema(admin_user_id: int):
             conn.commit()
 
         knowledge_doc_cols = {
-            row[1] for row in conn.exec_driver_sql("PRAGMA table_info(knowledge_documents)").fetchall()
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(knowledge_documents)"
+            ).fetchall()
         }
         if knowledge_doc_cols and "vector_collection" not in knowledge_doc_cols:
             conn.exec_driver_sql(
@@ -267,24 +410,39 @@ def _migrate_schema(admin_user_id: int):
             conn.commit()
 
         agent_cols = {
-            row[1] for row in conn.exec_driver_sql("PRAGMA table_info(agent_messages)").fetchall()
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(agent_messages)"
+            ).fetchall()
         }
         if agent_cols:
             for col, ddl in [
-                ("attachments", "ALTER TABLE agent_messages ADD COLUMN attachments TEXT DEFAULT ''"),
-                ("document_id", "ALTER TABLE agent_messages ADD COLUMN document_id INTEGER"),
+                (
+                    "attachments",
+                    "ALTER TABLE agent_messages ADD COLUMN attachments TEXT DEFAULT ''",
+                ),
+                (
+                    "document_id",
+                    "ALTER TABLE agent_messages ADD COLUMN document_id INTEGER",
+                ),
                 (
                     "pending_insight_ids",
                     "ALTER TABLE agent_messages ADD COLUMN pending_insight_ids TEXT DEFAULT ''",
                 ),
-                ("reply_to_id", "ALTER TABLE agent_messages ADD COLUMN reply_to_id INTEGER"),
+                (
+                    "reply_to_id",
+                    "ALTER TABLE agent_messages ADD COLUMN reply_to_id INTEGER",
+                ),
             ]:
                 if col not in agent_cols:
                     conn.exec_driver_sql(ddl)
                     conn.commit()
 
         design_cols = {
-            row[1] for row in conn.exec_driver_sql("PRAGMA table_info(design_assets)").fetchall()
+            row[1]
+            for row in conn.exec_driver_sql(
+                "PRAGMA table_info(design_assets)"
+            ).fetchall()
         }
         if design_cols and "parse_source" not in design_cols:
             conn.exec_driver_sql(

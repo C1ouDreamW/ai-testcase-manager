@@ -1,6 +1,14 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -29,12 +37,18 @@ class TestTask(Base):
     __tablename__ = "test_tasks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="")
-    status: Mapped[str] = mapped_column(String(20), default="in_progress")  # in_progress, completed
+    status: Mapped[str] = mapped_column(
+        String(20), default="in_progress"
+    )  # in_progress, completed
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
 
     batches: Mapped[list["TestBatch"]] = relationship(
         back_populates="task", cascade="all, delete-orphan", order_by="TestBatch.id"
@@ -43,7 +57,9 @@ class TestTask(Base):
     @property
     def stats(self) -> dict:
         """任务级汇总：所有批次执行记录合并统计。"""
-        all_cases = [bc for batch in (self.batches or []) for bc in (batch.batch_cases or [])]
+        all_cases = [
+            bc for batch in (self.batches or []) for bc in (batch.batch_cases or [])
+        ]
         return _summarize(all_cases)
 
 
@@ -51,11 +67,19 @@ class TestBatch(Base):
     __tablename__ = "test_batches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    task_id: Mapped[int] = mapped_column(ForeignKey("test_tasks.id"), nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False)  # 线下测试 / 预发测试 / 线上测试 / 自定义
-    status: Mapped[str] = mapped_column(String(20), default="in_progress")  # in_progress, completed
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("test_tasks.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(
+        String(100), nullable=False
+    )  # 线下测试 / 预发测试 / 线上测试 / 自定义
+    status: Mapped[str] = mapped_column(
+        String(20), default="in_progress"
+    )  # in_progress, completed
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now()
+    )
 
     task: Mapped["TestTask"] = relationship(back_populates="batches")
     batch_cases: Mapped[list["TestBatchCase"]] = relationship(
@@ -72,9 +96,15 @@ class TestBatchCase(Base):
     __table_args__ = (UniqueConstraint("batch_id", "case_id", name="uq_batch_case"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    batch_id: Mapped[int] = mapped_column(ForeignKey("test_batches.id"), nullable=False, index=True)
-    case_id: Mapped[int] = mapped_column(ForeignKey("testcases.id"), nullable=False, index=True)
-    result: Mapped[str] = mapped_column(String(20), default="pending")  # pending, passed, failed, blocked
+    batch_id: Mapped[int] = mapped_column(
+        ForeignKey("test_batches.id"), nullable=False, index=True
+    )
+    case_id: Mapped[int] = mapped_column(
+        ForeignKey("testcases.id"), nullable=False, index=True
+    )
+    result: Mapped[str] = mapped_column(
+        String(20), default="pending"
+    )  # pending, passed, failed, blocked
     note: Mapped[str] = mapped_column(Text, default="")  # 失败 / 阻塞原因等备注
     defect_ref: Mapped[str] = mapped_column(String(200), default="")  # 缺陷单号或链接
     executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

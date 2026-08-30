@@ -144,15 +144,23 @@ async def _stream_parse_images(
         except Exception as exc:
             err = _http_detail(exc)
             errors.append(f"asset_id={asset_id}：{err}")
-            summaries.append({
-                "id": asset_id,
-                "error": err,
-                "insights": [],
-                "is_mock_result": False,
-                "source_note": "",
-            })
-            output = json.dumps({"error": err, "asset_id": asset_id}, ensure_ascii=False)
-        yield {"type": "tool_end", "name": "parse_design_asset", "output": output[:4000]}
+            summaries.append(
+                {
+                    "id": asset_id,
+                    "error": err,
+                    "insights": [],
+                    "is_mock_result": False,
+                    "source_note": "",
+                }
+            )
+            output = json.dumps(
+                {"error": err, "asset_id": asset_id}, ensure_ascii=False
+            )
+        yield {
+            "type": "tool_end",
+            "name": "parse_design_asset",
+            "output": output[:4000],
+        }
 
     yield {
         "type": "_parse_summary",
@@ -168,18 +176,24 @@ def _format_parse_answer(summaries: list[dict], errors: list[str]) -> list[str]:
     if errors and not any(s.get("insights") for s in summaries):
         lines.append("设计稿解析失败，未能调用成功的视觉解析：")
         lines.extend(f"- {err}" for err in errors)
-        lines.append("请到「设置 → 视觉模型」确认模型已开通且接口可达，稍后重试或重新上传/解析。")
+        lines.append(
+            "请到「设置 → 视觉模型」确认模型已开通且接口可达，稍后重试或重新上传/解析。"
+        )
         return lines
 
     for summary in summaries:
         if summary.get("error"):
             lines.append(f"设计稿 #{summary.get('id')} 解析失败：{summary['error']}")
             continue
-        title = summary.get("title") or summary.get("filename") or f"#{summary.get('id')}"
+        title = (
+            summary.get("title") or summary.get("filename") or f"#{summary.get('id')}"
+        )
         if summary.get("is_design") is False:
             desc = summary.get("image_summary") or "图片内容与产品界面无关"
             lines.append(f"【{title}】这张图不像产品设计稿：{desc}")
-            lines.append("已跳过，不会生成功能点。如需解析，请上传真实的页面截图或原型图。")
+            lines.append(
+                "已跳过，不会生成功能点。如需解析，请上传真实的页面截图或原型图。"
+            )
             continue
         if summary.get("is_mock_result"):
             lines.append(f"【{title}】解析完成，但是 Mock 示例数据（未调用视觉模型）。")
@@ -203,7 +217,9 @@ def _format_parse_answer(summaries: list[dict], errors: list[str]) -> list[str]:
     # 仅当确有待确认功能点时才提示合并
     has_insights = any(s.get("insights") for s in summaries)
     if has_insights:
-        lines.append("请确认后点击「确认合并」，或回复「确认合并」。在你确认前我不会写入需求。")
+        lines.append(
+            "请确认后点击「确认合并」，或回复「确认合并」。在你确认前我不会写入需求。"
+        )
     return lines
 
 
@@ -270,7 +286,9 @@ async def run_agent(
     builder.add_node("agent", call_model)
     builder.add_node("tools", ToolNode(tools))
     builder.add_edge(START, "agent")
-    builder.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})
+    builder.add_conditional_edges(
+        "agent", tools_condition, {"tools": "tools", END: END}
+    )
     builder.add_edge("tools", "agent")
     graph = builder.compile()
 
@@ -280,11 +298,13 @@ async def run_agent(
         user_content = f"{question}\n\n[{context_note}]"
 
     messages = [
-        SystemMessage(SYSTEM_PROMPT.format(
-            project_name=project_name,
-            project_id=project_id,
-            context_block=context_block,
-        )),
+        SystemMessage(
+            SYSTEM_PROMPT.format(
+                project_name=project_name,
+                project_id=project_id,
+                context_block=context_block,
+            )
+        ),
         *_history_messages(history),
         HumanMessage(user_content),
     ]
@@ -341,7 +361,11 @@ async def _run_mock(
     question: str,
 ) -> AsyncIterator[dict]:
     """Mock 剧本：无设计附件时走知识库检索演示。"""
-    yield {"type": "tool_start", "name": "search_knowledge", "input": {"query": question}}
+    yield {
+        "type": "tool_start",
+        "name": "search_knowledge",
+        "input": {"query": question},
+    }
     try:
         hits = await knowledge_service.retrieve(db, project_id, question, top_k=3)
     except Exception:
@@ -354,9 +378,13 @@ async def _run_mock(
     ]
     if hits:
         top = hits[0]
-        source = f"《{top['title']}》" + (f" · {top['heading']}" if top["heading"] else "")
+        source = f"《{top['title']}》" + (
+            f" · {top['heading']}" if top["heading"] else ""
+        )
         lines.append(f"最相关的知识来自 {source}：{top['content'][:120]}")
-    lines.append("配置真实生成模型后，我可以基于这些数据直接回答你的问题。也可上传设计稿截图，让我解析功能点。")
+    lines.append(
+        "配置真实生成模型后，我可以基于这些数据直接回答你的问题。也可上传设计稿截图，让我解析功能点。"
+    )
 
     for piece in lines:
         yield {"type": "token", "content": piece + "\n"}

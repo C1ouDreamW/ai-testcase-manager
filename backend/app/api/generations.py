@@ -10,7 +10,6 @@ from app.api.deps import require_project_access
 from app.models.generation import GeneratedCaseDraft, GenerationTask
 from app.models.project import Project
 from app.models.requirement import RequirementDocument, RequirementItem
-from app.models.testcase import TestCase
 from app.schemas import (
     DraftEdit,
     GeneratedCaseDraftOut,
@@ -31,7 +30,10 @@ from app.services.quality_checker import judge_summary
 from app.services.settings_service import get_project_runtime_config
 from app.services.testcase_export_service import export_testcases
 from app.workflows.generation.control import claim_run_lease
-from app.workflows.generation.runner import resume_generation_workflow, run_generation_workflow
+from app.workflows.generation.runner import (
+    resume_generation_workflow,
+    run_generation_workflow,
+)
 
 router = APIRouter(
     prefix="/projects/{project_id}/generations",
@@ -52,7 +54,9 @@ def _load_task(db: Session, project_id: int, task_id: int) -> GenerationTask:
     task = (
         db.query(GenerationTask)
         .options(
-            joinedload(GenerationTask.drafts).joinedload(GeneratedCaseDraft.requirement_item),
+            joinedload(GenerationTask.drafts).joinedload(
+                GeneratedCaseDraft.requirement_item
+            ),
             joinedload(GenerationTask.quality_report),
         )
         .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
@@ -68,10 +72,14 @@ def list_tasks(project_id: int, db: Session = Depends(get_db)):
     return (
         db.query(GenerationTask)
         .options(
-            joinedload(GenerationTask.drafts).joinedload(GeneratedCaseDraft.requirement_item),
+            joinedload(GenerationTask.drafts).joinedload(
+                GeneratedCaseDraft.requirement_item
+            ),
             joinedload(GenerationTask.quality_report),
         )
-        .filter(GenerationTask.project_id == project_id, GenerationTask.is_eval == False)
+        .filter(
+            GenerationTask.project_id == project_id, GenerationTask.is_eval == False
+        )
         .order_by(GenerationTask.created_at.desc())
         .all()
     )
@@ -89,7 +97,10 @@ async def create_task(
 
     doc = (
         db.query(RequirementDocument)
-        .filter(RequirementDocument.id == data.document_id, RequirementDocument.project_id == project_id)
+        .filter(
+            RequirementDocument.id == data.document_id,
+            RequirementDocument.project_id == project_id,
+        )
         .first()
     )
     if not doc:
@@ -125,8 +136,12 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
     """生成记录列表：只返回统计信息，不返回草稿明细。"""
     tasks = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
-        .filter(GenerationTask.project_id == project_id, GenerationTask.is_eval == False)
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
+        .filter(
+            GenerationTask.project_id == project_id, GenerationTask.is_eval == False
+        )
         .order_by(GenerationTask.created_at.desc())
         .all()
     )
@@ -159,7 +174,9 @@ def list_task_summaries(project_id: int, db: Session = Depends(get_db)):
                 created_at=t.created_at,
                 draft_count=len(drafts),
                 smoke_count=sum(1 for d in drafts if d.is_smoke),
-                coverage_rate=t.quality_report.coverage_rate if t.quality_report else None,
+                coverage_rate=t.quality_report.coverage_rate
+                if t.quality_report
+                else None,
                 review_stats=t.review_stats,
             )
         )
@@ -255,7 +272,9 @@ def export_drafts(
     item_ids = {d.requirement_item_id for d in drafts if d.requirement_item_id}
     items_map = {}
     if item_ids:
-        for item in db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all():
+        for item in (
+            db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all()
+        ):
             items_map[item.id] = item
 
     doc = db.get(RequirementDocument, task.document_id)
@@ -264,24 +283,28 @@ def export_drafts(
     cases = []
     for d in drafts:
         item = items_map.get(d.requirement_item_id)
-        cases.append({
-            "id": d.id,
-            "module": item.module if item else "",
-            "feature": item.feature if item else "",
-            "title": d.title,
-            "priority": d.priority,
-            "case_type": d.case_type,
-            "is_smoke": d.is_smoke,
-            "precondition": d.precondition,
-            "steps": d.steps,
-            "expected_result": d.expected_result,
-            "review_status": d.review_status,
-            "source": "ai_generated",
-        })
+        cases.append(
+            {
+                "id": d.id,
+                "module": item.module if item else "",
+                "feature": item.feature if item else "",
+                "title": d.title,
+                "priority": d.priority,
+                "case_type": d.case_type,
+                "is_smoke": d.is_smoke,
+                "precondition": d.precondition,
+                "steps": d.steps,
+                "expected_result": d.expected_result,
+                "review_status": d.review_status,
+                "source": "ai_generated",
+            }
+        )
 
     fmt = "md" if format == "md" else "xlsx"
     export_title = f"{doc_title}-生成任务{task_id}"
-    content, media_type, ext = export_testcases(export_title, cases, fmt=fmt, include_review=True)
+    content, media_type, ext = export_testcases(
+        export_title, cases, fmt=fmt, include_review=True
+    )
     suffix = "冒烟" if smoke_only else "用例"
     filename = f"{doc_title}-任务{task_id}-{suffix}.{ext}"
     headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
@@ -289,11 +312,17 @@ def export_drafts(
 
 
 @router.post("/{task_id}/review", response_model=list[TestCaseOut])
-def review_drafts(project_id: int, task_id: int, data: ReviewAction, db: Session = Depends(get_db)):
-    task = db.query(GenerationTask).filter(
-        GenerationTask.id == task_id,
-        GenerationTask.project_id == project_id,
-    ).first()
+def review_drafts(
+    project_id: int, task_id: int, data: ReviewAction, db: Session = Depends(get_db)
+):
+    task = (
+        db.query(GenerationTask)
+        .filter(
+            GenerationTask.id == task_id,
+            GenerationTask.project_id == project_id,
+        )
+        .first()
+    )
     if not task:
         raise HTTPException(404, "生成任务不存在")
     if data.action == "adopt":
@@ -304,7 +333,10 @@ def review_drafts(project_id: int, task_id: int, data: ReviewAction, db: Session
     if data.action == "to_confirm":
         drafts = (
             db.query(GeneratedCaseDraft)
-            .filter(GeneratedCaseDraft.task_id == task_id, GeneratedCaseDraft.id.in_(data.draft_ids))
+            .filter(
+                GeneratedCaseDraft.task_id == task_id,
+                GeneratedCaseDraft.id.in_(data.draft_ids),
+            )
             .all()
         )
         for d in drafts:
@@ -321,7 +353,9 @@ async def rejudge_task(project_id: int, task_id: int, db: Session = Depends(get_
     """手动（重新）运行 AI Judge 评分，并刷新质检报告中的评分汇总。"""
     task = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(GenerationTask.id == task_id, GenerationTask.project_id == project_id)
         .first()
     )

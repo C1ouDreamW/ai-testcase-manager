@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.api.deps import current_user_id
 from app.models.project import Project
-from app.schemas import HomeOverviewOut, ProjectCreate, ProjectOut, ProjectStageOut, ProjectUpdate
+from app.schemas import (
+    HomeOverviewOut,
+    ProjectCreate,
+    ProjectOut,
+    ProjectStageOut,
+    ProjectUpdate,
+)
 from app.services.knowledge_service import delete_document_vectors
 from app.services.design_storage import remove_project_designs
 from app.services.project_service import compute_project_stage, get_home_overview
@@ -29,7 +35,9 @@ def list_projects(db: Session = Depends(get_db)):
 
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
-    project = Project(user_id=current_user_id(db), name=data.name, description=data.description)
+    project = Project(
+        user_id=current_user_id(db), name=data.name, description=data.description
+    )
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -38,11 +46,15 @@ def create_project(data: ProjectCreate, db: Session = Depends(get_db)):
 
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user_id(db),
-        Project.is_eval == False,
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.user_id == current_user_id(db),
+            Project.is_eval == False,
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(404, "项目不存在")
     return project
@@ -50,11 +62,15 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{project_id}/stage", response_model=ProjectStageOut)
 def get_project_stage(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user_id(db),
-        Project.is_eval == False,
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.user_id == current_user_id(db),
+            Project.is_eval == False,
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(404, "项目不存在")
     return compute_project_stage(db, project_id)
@@ -62,11 +78,15 @@ def get_project_stage(project_id: int, db: Session = Depends(get_db)):
 
 @router.patch("/{project_id}", response_model=ProjectOut)
 def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user_id(db),
-        Project.is_eval == False,
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.user_id == current_user_id(db),
+            Project.is_eval == False,
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(404, "项目不存在")
     if data.name is not None:
@@ -80,11 +100,15 @@ def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(g
 
 @router.delete("/{project_id}", status_code=204)
 def delete_project(project_id: int, db: Session = Depends(get_db)):
-    project = db.query(Project).filter(
-        Project.id == project_id,
-        Project.user_id == current_user_id(db),
-        Project.is_eval == False,
-    ).first()
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.user_id == current_user_id(db),
+            Project.is_eval == False,
+        )
+        .first()
+    )
     if not project:
         raise HTTPException(404, "项目不存在")
     # 先清理知识库向量，SQLite 复用主键时残留向量会污染新项目的检索

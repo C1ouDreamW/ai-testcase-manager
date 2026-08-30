@@ -5,7 +5,9 @@ def format_scope_hint(scope: dict | None) -> str:
     """把测试范围与风险格式化为可拼入 Prompt 的文本。"""
     if not isinstance(scope, dict):
         return ""
-    out_scope = [str(s).strip() for s in (scope.get("out_scope") or []) if str(s).strip()]
+    out_scope = [
+        str(s).strip() for s in (scope.get("out_scope") or []) if str(s).strip()
+    ]
     risks = [str(s).strip() for s in (scope.get("risks") or []) if str(s).strip()]
     if not out_scope and not risks:
         return ""

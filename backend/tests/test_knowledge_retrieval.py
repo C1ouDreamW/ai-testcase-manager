@@ -15,7 +15,13 @@ from sqlalchemy.orm import sessionmaker
 import app.models  # noqa: F401  确保所有表注册到 Base.metadata
 from app.database import Base
 from app.models.knowledge import KnowledgeChunk, KnowledgeDocument
-from app.services.knowledge_service import _bm25_search, _rerank, _rrf_fuse, _tokenize, _vector_search
+from app.services.knowledge_service import (
+    _bm25_search,
+    _rerank,
+    _rrf_fuse,
+    _tokenize,
+    _vector_search,
+)
 from app.services.settings_service import RuntimeModelConfig
 
 
@@ -40,30 +46,36 @@ class BM25SearchTests(unittest.TestCase):
         Base.metadata.create_all(engine)
         self.db = sessionmaker(bind=engine)()
 
-        doc = KnowledgeDocument(id=1, project_id=1, title="退款规则", source_type="doc", status="ready")
-        failed_doc = KnowledgeDocument(id=2, project_id=1, title="未就绪文档", source_type="doc", status="failed")
-        self.db.add_all([
-            doc,
-            failed_doc,
-            KnowledgeChunk(
-                document_id=1,
-                content="退款接口异常时返回错误码 ERR_4003，需要人工介入处理",
-                heading="退款模块 > 异常处理",
-                chroma_id="doc1_c0",
-            ),
-            KnowledgeChunk(
-                document_id=1,
-                content="订单创建后三十分钟未支付将自动关闭",
-                heading="订单模块 > 超时规则",
-                chroma_id="doc1_c1",
-            ),
-            KnowledgeChunk(
-                document_id=2,
-                content="失败文档里也有 ERR_4003 错误码",
-                heading="",
-                chroma_id="doc2_c0",
-            ),
-        ])
+        doc = KnowledgeDocument(
+            id=1, project_id=1, title="退款规则", source_type="doc", status="ready"
+        )
+        failed_doc = KnowledgeDocument(
+            id=2, project_id=1, title="未就绪文档", source_type="doc", status="failed"
+        )
+        self.db.add_all(
+            [
+                doc,
+                failed_doc,
+                KnowledgeChunk(
+                    document_id=1,
+                    content="退款接口异常时返回错误码 ERR_4003，需要人工介入处理",
+                    heading="退款模块 > 异常处理",
+                    chroma_id="doc1_c0",
+                ),
+                KnowledgeChunk(
+                    document_id=1,
+                    content="订单创建后三十分钟未支付将自动关闭",
+                    heading="订单模块 > 超时规则",
+                    chroma_id="doc1_c1",
+                ),
+                KnowledgeChunk(
+                    document_id=2,
+                    content="失败文档里也有 ERR_4003 错误码",
+                    heading="",
+                    chroma_id="doc2_c0",
+                ),
+            ]
+        )
         self.db.commit()
 
     def tearDown(self):
@@ -127,35 +139,51 @@ class VectorSearchTests(unittest.TestCase):
             yield embeddings
 
         store = unittest.mock.MagicMock()
-        store.asimilarity_search_with_relevance_scores = AsyncMock(return_value=[
-            (
-                Document(
-                    page_content="退款模块 > 规则\n用于向量化的正文",
-                    metadata={
-                        "chroma_id": "doc1_c0",
-                        "content": "用于提示词的原始正文",
-                        "title": "退款规则",
-                        "heading": "退款模块 > 规则",
-                        "source_type": "doc",
-                    },
+        store.asimilarity_search_with_relevance_scores = AsyncMock(
+            return_value=[
+                (
+                    Document(
+                        page_content="退款模块 > 规则\n用于向量化的正文",
+                        metadata={
+                            "chroma_id": "doc1_c0",
+                            "content": "用于提示词的原始正文",
+                            "title": "退款规则",
+                            "heading": "退款模块 > 规则",
+                            "source_type": "doc",
+                        },
+                    ),
+                    0.88,
                 ),
-                0.88,
-            ),
-            (Document(page_content="低分内容", metadata={"chroma_id": "doc1_c1"}), 0.2),
-        ])
+                (
+                    Document(
+                        page_content="低分内容", metadata={"chroma_id": "doc1_c1"}
+                    ),
+                    0.2,
+                ),
+            ]
+        )
         config = RuntimeModelConfig(llm_mock_mode=True)
 
         with (
-            patch("app.services.knowledge_service.embedding_context", fake_embedding_context),
-            patch("app.services.knowledge_service.create_vector_store", return_value=store) as factory,
+            patch(
+                "app.services.knowledge_service.embedding_context",
+                fake_embedding_context,
+            ),
+            patch(
+                "app.services.knowledge_service.create_vector_store", return_value=store
+            ) as factory,
         ):
-            hits = asyncio.run(_vector_search(1, "退款", config, top_n=20, threshold=0.35))
+            hits = asyncio.run(
+                _vector_search(1, "退款", config, top_n=20, threshold=0.35)
+            )
 
         self.assertEqual(len(hits), 1)
         self.assertEqual(hits[0]["content"], "用于提示词的原始正文")
         self.assertEqual(hits[0]["score"], 0.88)
         self.assertIs(factory.call_args.args[1], embeddings)
-        store.asimilarity_search_with_relevance_scores.assert_awaited_once_with("退款", k=20)
+        store.asimilarity_search_with_relevance_scores.assert_awaited_once_with(
+            "退款", k=20
+        )
 
 
 class RerankTests(unittest.TestCase):

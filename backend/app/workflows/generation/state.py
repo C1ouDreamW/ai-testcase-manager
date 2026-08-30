@@ -25,4 +25,3 @@ class GenerationState(TypedDict, total=False):
     retry_count: int
     generation_error: str
     duplicate_count: int
-

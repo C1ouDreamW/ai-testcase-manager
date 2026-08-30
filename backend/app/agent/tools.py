@@ -45,18 +45,20 @@ def build_agent_tools(
             return _dump({"error": f"知识库检索失败：{exc}"})
         if not hits:
             return _dump({"hits": [], "message": "知识库中没有检索到相关内容"})
-        return _dump({
-            "hits": [
-                {
-                    "title": h["title"],
-                    "heading": h["heading"],
-                    "content": _clip(h["content"]),
-                    "score": h["score"],
-                    "match": h["match"],
-                }
-                for h in hits
-            ]
-        })
+        return _dump(
+            {
+                "hits": [
+                    {
+                        "title": h["title"],
+                        "heading": h["heading"],
+                        "content": _clip(h["content"]),
+                        "score": h["score"],
+                        "match": h["match"],
+                    }
+                    for h in hits
+                ]
+            }
+        )
 
     def list_testcases(
         keyword: str = "",
@@ -67,7 +69,9 @@ def build_agent_tools(
     ) -> str:
         q = (
             db.query(TestCase, RequirementItem.module, RequirementItem.feature)
-            .outerjoin(RequirementItem, TestCase.requirement_item_id == RequirementItem.id)
+            .outerjoin(
+                RequirementItem, TestCase.requirement_item_id == RequirementItem.id
+            )
             .filter(TestCase.project_id == project_id)
         )
         if keyword.strip():
@@ -81,54 +85,68 @@ def build_agent_tools(
         total = q.count()
         limit = max(1, min(limit, MAX_LIST_ITEMS))
         rows = q.order_by(TestCase.priority, TestCase.id).limit(limit).all()
-        return _dump({
-            "total": total,
-            "returned": len(rows),
-            "note": "" if total <= limit else f"共 {total} 条，仅返回前 {limit} 条，可用筛选条件缩小范围",
-            "cases": [
-                {
-                    "id": tc.id,
-                    "title": tc.title,
-                    "priority": tc.priority,
-                    "case_type": tc.case_type,
-                    "is_smoke": tc.is_smoke,
-                    "module": m or "",
-                    "feature": f or "",
-                }
-                for tc, m, f in rows
-            ],
-        })
+        return _dump(
+            {
+                "total": total,
+                "returned": len(rows),
+                "note": ""
+                if total <= limit
+                else f"共 {total} 条，仅返回前 {limit} 条，可用筛选条件缩小范围",
+                "cases": [
+                    {
+                        "id": tc.id,
+                        "title": tc.title,
+                        "priority": tc.priority,
+                        "case_type": tc.case_type,
+                        "is_smoke": tc.is_smoke,
+                        "module": m or "",
+                        "feature": f or "",
+                    }
+                    for tc, m, f in rows
+                ],
+            }
+        )
 
     def get_testcase_detail(case_id: int) -> str:
         row = (
             db.query(TestCase, RequirementItem.module, RequirementItem.feature)
-            .outerjoin(RequirementItem, TestCase.requirement_item_id == RequirementItem.id)
+            .outerjoin(
+                RequirementItem, TestCase.requirement_item_id == RequirementItem.id
+            )
             .filter(TestCase.project_id == project_id, TestCase.id == case_id)
             .first()
         )
         if not row:
             return _dump({"error": f"该项目中不存在 ID 为 {case_id} 的用例"})
         tc, module, feature = row
-        return _dump({
-            "id": tc.id,
-            "title": tc.title,
-            "priority": tc.priority,
-            "case_type": tc.case_type,
-            "is_smoke": tc.is_smoke,
-            "module": module or "",
-            "feature": feature or "",
-            "precondition": tc.precondition,
-            "steps": tc.steps,
-            "expected_result": tc.expected_result,
-            "status": tc.status,
-            "source": tc.source,
-        })
+        return _dump(
+            {
+                "id": tc.id,
+                "title": tc.title,
+                "priority": tc.priority,
+                "case_type": tc.case_type,
+                "is_smoke": tc.is_smoke,
+                "module": module or "",
+                "feature": feature or "",
+                "precondition": tc.precondition,
+                "steps": tc.steps,
+                "expected_result": tc.expected_result,
+                "status": tc.status,
+                "source": tc.source,
+            }
+        )
 
     def get_coverage_summary() -> str:
         items = (
             db.query(RequirementItem)
-            .join(RequirementDocument, RequirementItem.document_id == RequirementDocument.id)
-            .filter(RequirementDocument.project_id == project_id, RequirementItem.confirmed == True)  # noqa: E712
+            .join(
+                RequirementDocument,
+                RequirementItem.document_id == RequirementDocument.id,
+            )
+            .filter(
+                RequirementDocument.project_id == project_id,
+                RequirementItem.confirmed == True,
+            )  # noqa: E712
             .all()
         )
         if not items:
@@ -136,19 +154,26 @@ def build_agent_tools(
         covered_ids = {
             item_id
             for (item_id,) in db.query(TestCase.requirement_item_id)
-            .filter(TestCase.project_id == project_id, TestCase.requirement_item_id.isnot(None))
+            .filter(
+                TestCase.project_id == project_id,
+                TestCase.requirement_item_id.isnot(None),
+            )
             .distinct()
         }
         uncovered = [i for i in items if i.id not in covered_ids]
-        return _dump({
-            "confirmed_features": len(items),
-            "covered_features": len(items) - len(uncovered),
-            "coverage_rate": round((len(items) - len(uncovered)) / len(items) * 100, 1),
-            "uncovered": [
-                {"module": i.module, "feature": i.feature}
-                for i in uncovered[:MAX_LIST_ITEMS]
-            ],
-        })
+        return _dump(
+            {
+                "confirmed_features": len(items),
+                "covered_features": len(items) - len(uncovered),
+                "coverage_rate": round(
+                    (len(items) - len(uncovered)) / len(items) * 100, 1
+                ),
+                "uncovered": [
+                    {"module": i.module, "feature": i.feature}
+                    for i in uncovered[:MAX_LIST_ITEMS]
+                ],
+            }
+        )
 
     def get_test_task_stats(task_name: str = "") -> str:
         q = (
@@ -161,21 +186,28 @@ def build_agent_tools(
         tasks = q.order_by(TestTask.created_at.desc()).limit(10).all()
         if not tasks:
             return _dump({"message": "没有找到匹配的测试任务"})
-        return _dump({
-            "tasks": [
-                {
-                    "id": t.id,
-                    "name": t.name,
-                    "status": t.status,
-                    "stats": t.stats,
-                    "batches": [
-                        {"id": b.id, "name": b.name, "status": b.status, "stats": b.stats}
-                        for b in t.batches
-                    ],
-                }
-                for t in tasks
-            ]
-        })
+        return _dump(
+            {
+                "tasks": [
+                    {
+                        "id": t.id,
+                        "name": t.name,
+                        "status": t.status,
+                        "stats": t.stats,
+                        "batches": [
+                            {
+                                "id": b.id,
+                                "name": b.name,
+                                "status": b.status,
+                                "stats": b.stats,
+                            }
+                            for b in t.batches
+                        ],
+                    }
+                    for t in tasks
+                ]
+            }
+        )
 
     def list_defects(include_blocked: bool = True) -> str:
         results = ["failed", "blocked"] if include_blocked else ["failed"]
@@ -184,29 +216,33 @@ def build_agent_tools(
             .join(TestBatch, TestBatchCase.batch_id == TestBatch.id)
             .join(TestTask, TestBatch.task_id == TestTask.id)
             .join(TestCase, TestBatchCase.case_id == TestCase.id)
-            .filter(TestTask.project_id == project_id, TestBatchCase.result.in_(results))
+            .filter(
+                TestTask.project_id == project_id, TestBatchCase.result.in_(results)
+            )
             .order_by(TestBatchCase.executed_at.desc())
             .limit(MAX_LIST_ITEMS)
             .all()
         )
         if not rows:
             return _dump({"defects": [], "message": "当前没有失败或阻塞的执行记录"})
-        return _dump({
-            "defects": [
-                {
-                    "case_id": tc.id,
-                    "title": tc.title,
-                    "priority": tc.priority,
-                    "result": bc.result,
-                    "note": _clip(bc.note, 200),
-                    "defect_ref": bc.defect_ref,
-                    "task": task.name,
-                    "batch": batch.name,
-                    "executed_at": bc.executed_at,
-                }
-                for bc, batch, task, tc in rows
-            ]
-        })
+        return _dump(
+            {
+                "defects": [
+                    {
+                        "case_id": tc.id,
+                        "title": tc.title,
+                        "priority": tc.priority,
+                        "result": bc.result,
+                        "note": _clip(bc.note, 200),
+                        "defect_ref": bc.defect_ref,
+                        "task": task.name,
+                        "batch": batch.name,
+                        "executed_at": bc.executed_at,
+                    }
+                    for bc, batch, task, tc in rows
+                ]
+            }
+        )
 
     def list_requirement_documents(limit: int = 10) -> str:
         docs = (
@@ -216,29 +252,33 @@ def build_agent_tools(
             .limit(max(1, min(limit, MAX_LIST_ITEMS)))
             .all()
         )
-        return _dump({
-            "documents": [
-                {
-                    "id": d.id,
-                    "title": d.title,
-                    "status": d.status,
-                    "item_count": len(d.items or []),
-                    "created_at": d.created_at,
-                }
-                for d in docs
-            ]
-        })
+        return _dump(
+            {
+                "documents": [
+                    {
+                        "id": d.id,
+                        "title": d.title,
+                        "status": d.status,
+                        "item_count": len(d.items or []),
+                        "created_at": d.created_at,
+                    }
+                    for d in docs
+                ]
+            }
+        )
 
     def list_design_assets(document_id: int) -> str:
         try:
             assets = design_service.list_assets(db, project_id, document_id)
         except HTTPException as exc:
             return _dump({"error": exc.detail})
-        return _dump({
-            "document_id": document_id,
-            "assets": [design_service.asset_to_summary(a) for a in assets],
-            "note": "Figma 链接仅作关联展示；请对截图资产调用 parse_design_asset 做视觉解析。解析后勿自动合并，需用户确认。",
-        })
+        return _dump(
+            {
+                "document_id": document_id,
+                "assets": [design_service.asset_to_summary(a) for a in assets],
+                "note": "Figma 链接仅作关联展示；请对截图资产调用 parse_design_asset 做视觉解析。解析后勿自动合并，需用户确认。",
+            }
+        )
 
     async def parse_design_asset(asset_id: int) -> str:
         try:
@@ -267,11 +307,13 @@ def build_agent_tools(
                 "请把功能点列表展示给用户，并明确等待确认后再合并。"
                 "不要调用 merge_design_insights，除非用户已明确确认。"
             )
-        return _dump({
-            **summary,
-            "pending_insight_ids": pending_ids,
-            "message": message,
-        })
+        return _dump(
+            {
+                **summary,
+                "pending_insight_ids": pending_ids,
+                "message": message,
+            }
+        )
 
     def get_design_insights(document_id: int, asset_id: int = 0) -> str:
         try:
@@ -287,29 +329,33 @@ def build_agent_tools(
         insights = []
         asset_sources = []
         for asset in assets:
-            asset_sources.append({
-                "asset_id": asset.id,
-                "parse_source": asset.parse_source or "",
-                "is_mock_result": asset.parse_source == "mock",
-                "source_note": design_service.source_note(asset.parse_source or ""),
-            })
+            asset_sources.append(
+                {
+                    "asset_id": asset.id,
+                    "parse_source": asset.parse_source or "",
+                    "is_mock_result": asset.parse_source == "mock",
+                    "source_note": design_service.source_note(asset.parse_source or ""),
+                }
+            )
             for insight in asset.insights or []:
                 insights.append(design_service.insight_to_dict(insight))
         pending = [i for i in insights if not i["merged"]]
         any_mock = any(s["is_mock_result"] for s in asset_sources)
-        return _dump({
-            "document_id": document_id,
-            "total": len(insights),
-            "pending_count": len(pending),
-            "pending_insight_ids": [i["id"] for i in pending],
-            "asset_sources": asset_sources,
-            "insights": insights[:MAX_LIST_ITEMS],
-            "note": (
-                "其中含 Mock 示例数据，请先配置视觉模型并重新解析后再合并。"
-                if any_mock else
-                "合并前必须得到用户确认；前端确认卡片或用户明确说「确认合并」后才可调用 merge_design_insights。"
-            ),
-        })
+        return _dump(
+            {
+                "document_id": document_id,
+                "total": len(insights),
+                "pending_count": len(pending),
+                "pending_insight_ids": [i["id"] for i in pending],
+                "asset_sources": asset_sources,
+                "insights": insights[:MAX_LIST_ITEMS],
+                "note": (
+                    "其中含 Mock 示例数据，请先配置视觉模型并重新解析后再合并。"
+                    if any_mock
+                    else "合并前必须得到用户确认；前端确认卡片或用户明确说「确认合并」后才可调用 merge_design_insights。"
+                ),
+            }
+        )
 
     def merge_design_insights(
         document_id: int,
@@ -317,25 +363,33 @@ def build_agent_tools(
         confirmed: bool = False,
     ) -> str:
         if not confirmed:
-            return _dump({
-                "error": "拒绝合并：confirmed 必须为 true。请先展示功能点并等待用户确认。",
-            })
+            return _dump(
+                {
+                    "error": "拒绝合并：confirmed 必须为 true。请先展示功能点并等待用户确认。",
+                }
+            )
         if not insight_ids:
             return _dump({"error": "请提供要合并的 insight_ids"})
         try:
             result = design_service.merge_insights(
-                db, project_id, document_id, insight_ids, selected_only=False,
+                db,
+                project_id,
+                document_id,
+                insight_ids,
+                selected_only=False,
             )
         except HTTPException as exc:
             return _dump({"error": exc.detail})
-        return _dump({
-            "message": "已合并设计功能点到需求文档，需求状态已回退为 structured，需用户重新确认功能点后才能生成用例。",
-            "document_id": document_id,
-            "merged_count": result["merged_count"],
-            "added_count": result["added_count"],
-            "document_status": result["document_status"],
-            "item_count": result["item_count"],
-        })
+        return _dump(
+            {
+                "message": "已合并设计功能点到需求文档，需求状态已回退为 structured，需用户重新确认功能点后才能生成用例。",
+                "document_id": document_id,
+                "merged_count": result["merged_count"],
+                "added_count": result["added_count"],
+                "document_status": result["document_status"],
+                "item_count": result["item_count"],
+            }
+        )
 
     return [
         StructuredTool.from_function(

@@ -23,10 +23,14 @@ def feature_key(module: str, feature: str) -> tuple[str, str]:
 
 
 def get_document(db: Session, project_id: int, document_id: int) -> RequirementDocument:
-    document = db.query(RequirementDocument).filter(
-        RequirementDocument.id == document_id,
-        RequirementDocument.project_id == project_id,
-    ).first()
+    document = (
+        db.query(RequirementDocument)
+        .filter(
+            RequirementDocument.id == document_id,
+            RequirementDocument.project_id == project_id,
+        )
+        .first()
+    )
     if not document:
         raise HTTPException(404, "需求文档不存在")
     return document
@@ -90,7 +94,9 @@ def source_note(parse_source: str) -> str:
     if parse_source == "mock":
         return "Mock 示例数据，未调用视觉模型；请先在「设置」页配置视觉模型再重新解析"
     if parse_source.startswith("vision:"):
-        return f"由视觉模型 {parse_source.split(':', 1)[1] or '（未记录模型名）'} 真实解析"
+        return (
+            f"由视觉模型 {parse_source.split(':', 1)[1] or '（未记录模型名）'} 真实解析"
+        )
     return parse_source
 
 
@@ -162,18 +168,23 @@ async def parse_asset(db: Session, project_id: int, asset_id: int) -> DesignAsse
             db.commit()
             return get_asset(db, project_id, asset_id)
         for index, item in enumerate(insights_data):
-            db.add(DesignInsight(
-                asset_id=asset.id,
-                page=str(item.get("page", ""))[:200],
-                module=str(item.get("module", ""))[:100],
-                feature=str(item.get("feature", ""))[:200] or f"设计功能点 {index + 1}",
-                description=str(item.get("description", "")),
-                acceptance_criteria=str(item.get("acceptance_criteria", "")),
-                constraints=str(item.get("constraints", "")),
-                priority=item.get("priority") if item.get("priority") in {"P0", "P1", "P2"} else "P1",
-                sort_order=index,
-                selected=True,
-            ))
+            db.add(
+                DesignInsight(
+                    asset_id=asset.id,
+                    page=str(item.get("page", ""))[:200],
+                    module=str(item.get("module", ""))[:100],
+                    feature=str(item.get("feature", ""))[:200]
+                    or f"设计功能点 {index + 1}",
+                    description=str(item.get("description", "")),
+                    acceptance_criteria=str(item.get("acceptance_criteria", "")),
+                    constraints=str(item.get("constraints", "")),
+                    priority=item.get("priority")
+                    if item.get("priority") in {"P0", "P1", "P2"}
+                    else "P1",
+                    sort_order=index,
+                    selected=True,
+                )
+            )
         asset.status = "parsed"
         asset.parse_source = parse_source
         asset.image_summary = image_summary
@@ -230,19 +241,21 @@ def merge_insights(
     for insight in insights:
         key = feature_key(insight.module, insight.feature)
         if key not in existing_keys:
-            db.add(RequirementItem(
-                document_id=document_id,
-                module=insight.module,
-                feature=insight.feature,
-                description=insight.description,
-                acceptance_criteria=insight.acceptance_criteria,
-                constraints=insight.constraints,
-                priority=insight.priority,
-                sort_order=next_order,
-                confirmed=False,
-                source_type="design",
-                source_ref_id=insight.asset_id,
-            ))
+            db.add(
+                RequirementItem(
+                    document_id=document_id,
+                    module=insight.module,
+                    feature=insight.feature,
+                    description=insight.description,
+                    acceptance_criteria=insight.acceptance_criteria,
+                    constraints=insight.constraints,
+                    priority=insight.priority,
+                    sort_order=next_order,
+                    confirmed=False,
+                    source_type="design",
+                    source_ref_id=insight.asset_id,
+                )
+            )
             next_order += 1
             existing_keys.add(key)
             added += 1

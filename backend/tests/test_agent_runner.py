@@ -31,9 +31,18 @@ class MockModeRunnerTests(unittest.TestCase):
 
     def test_mock_event_sequence(self):
         # 默认 RuntimeModelConfig 无 API Key，use_mock_llm 为 True
-        events = asyncio.run(_collect(run_agent(
-            self.db, 1, "演示项目", "通过率怎么样", [], RuntimeModelConfig(),
-        )))
+        events = asyncio.run(
+            _collect(
+                run_agent(
+                    self.db,
+                    1,
+                    "演示项目",
+                    "通过率怎么样",
+                    [],
+                    RuntimeModelConfig(),
+                )
+            )
+        )
 
         types = [e["type"] for e in events]
         self.assertEqual(types[0], "tool_start")
@@ -57,45 +66,63 @@ class MockModeRunnerTests(unittest.TestCase):
         from app.models.requirement import RequirementDocument
         from app.models.user import User
 
-        self.db.add_all([
-            User(id=1, username="u", password_hash="x"),
-            Project(id=1, name="p", user_id=1),
-            RequirementDocument(id=1, project_id=1, title="需求", status="structured"),
-            DesignAsset(
-                id=5,
-                project_id=1,
-                document_id=1,
-                asset_type="image",
-                title="截图",
-                content_type="image/png",
-                storage_path="1/1/x.png",
-                status="uploaded",
-            ),
-        ])
+        self.db.add_all(
+            [
+                User(id=1, username="u", password_hash="x"),
+                Project(id=1, name="p", user_id=1),
+                RequirementDocument(
+                    id=1, project_id=1, title="需求", status="structured"
+                ),
+                DesignAsset(
+                    id=5,
+                    project_id=1,
+                    document_id=1,
+                    asset_type="image",
+                    title="截图",
+                    content_type="image/png",
+                    storage_path="1/1/x.png",
+                    status="uploaded",
+                ),
+            ]
+        )
         self.db.commit()
 
         with patch("app.agent.runner.design_service.parse_asset") as mock_parse:
+
             async def _fake_parse(db, project_id, asset_id):
                 asset = db.get(DesignAsset, asset_id)
-                db.add(DesignInsight(
-                    asset_id=asset.id,
-                    module="页面",
-                    feature="提交",
-                    description="提交表单",
-                    priority="P1",
-                    selected=True,
-                ))
+                db.add(
+                    DesignInsight(
+                        asset_id=asset.id,
+                        module="页面",
+                        feature="提交",
+                        description="提交表单",
+                        priority="P1",
+                        selected=True,
+                    )
+                )
                 asset.status = "parsed"
                 db.commit()
                 db.refresh(asset)
                 return asset
 
             mock_parse.side_effect = _fake_parse
-            events = asyncio.run(_collect(run_agent(
-                self.db, 1, "演示项目", "请解析", [], RuntimeModelConfig(),
-                document_id=1,
-                attachments=[{"asset_id": 5, "asset_type": "image", "title": "截图"}],
-            )))
+            events = asyncio.run(
+                _collect(
+                    run_agent(
+                        self.db,
+                        1,
+                        "演示项目",
+                        "请解析",
+                        [],
+                        RuntimeModelConfig(),
+                        document_id=1,
+                        attachments=[
+                            {"asset_id": 5, "asset_type": "image", "title": "截图"}
+                        ],
+                    )
+                )
+            )
 
         done = events[-1]
         self.assertEqual(done["type"], "done")
@@ -112,7 +139,9 @@ class HistoryMessagesTests(unittest.TestCase):
         self.assertEqual(messages[1].type, "ai")
 
     def test_limit_and_empty_content_skipped(self):
-        history = [("user", f"问{i}") for i in range(HISTORY_LIMIT + 5)] + [("assistant", "")]
+        history = [("user", f"问{i}") for i in range(HISTORY_LIMIT + 5)] + [
+            ("assistant", "")
+        ]
         messages = _history_messages(history)
         self.assertLessEqual(len(messages), HISTORY_LIMIT)
         self.assertTrue(all(m.content for m in messages))

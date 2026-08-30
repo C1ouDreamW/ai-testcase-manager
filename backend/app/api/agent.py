@@ -66,13 +66,15 @@ def _serialize_message(
     for item in attachments_raw:
         if not isinstance(item, dict):
             continue
-        attachments.append(AgentAttachmentOut(
-            asset_id=int(item.get("asset_id") or 0),
-            asset_type=str(item.get("asset_type") or "image"),
-            title=str(item.get("title") or ""),
-            filename=str(item.get("filename") or ""),
-            figma_url=str(item.get("figma_url") or ""),
-        ))
+        attachments.append(
+            AgentAttachmentOut(
+                asset_id=int(item.get("asset_id") or 0),
+                asset_type=str(item.get("asset_type") or "image"),
+                title=str(item.get("title") or ""),
+                filename=str(item.get("filename") or ""),
+                figma_url=str(item.get("figma_url") or ""),
+            )
+        )
     reply_to = None
     if row.reply_to_id:
         target = (reply_map or {}).get(row.reply_to_id)
@@ -88,7 +90,9 @@ def _serialize_message(
         ],
         attachments=attachments,
         document_id=row.document_id,
-        pending_insight_ids=[int(x) for x in pending if str(x).isdigit() or isinstance(x, int)],
+        pending_insight_ids=[
+            int(x) for x in pending if str(x).isdigit() or isinstance(x, int)
+        ],
         reply_to_id=row.reply_to_id,
         reply_to=reply_to,
         created_at=row.created_at,
@@ -129,10 +133,14 @@ def _resolve_attachments(
             asset_ids.append(att.asset_id)
 
     if document_id is not None:
-        doc = db.query(RequirementDocument).filter(
-            RequirementDocument.id == document_id,
-            RequirementDocument.project_id == project_id,
-        ).first()
+        doc = (
+            db.query(RequirementDocument)
+            .filter(
+                RequirementDocument.id == document_id,
+                RequirementDocument.project_id == project_id,
+            )
+            .first()
+        )
         if not doc:
             raise HTTPException(404, "目标需求文档不存在")
     elif not asset_ids:
@@ -157,13 +165,15 @@ def _resolve_attachments(
             raise HTTPException(400, "设计稿必须属于所选需求文档")
         for aid in asset_ids:
             asset = by_id[aid]
-            attachments.append({
-                "asset_id": asset.id,
-                "asset_type": asset.asset_type,
-                "title": asset.title or "",
-                "filename": asset.filename or "",
-                "figma_url": asset.figma_url or "",
-            })
+            attachments.append(
+                {
+                    "asset_id": asset.id,
+                    "asset_type": asset.asset_type,
+                    "title": asset.title or "",
+                    "filename": asset.filename or "",
+                    "figma_url": asset.figma_url or "",
+                }
+            )
 
     note_parts = []
     if document_id is not None:
@@ -194,13 +204,16 @@ def list_messages(project_id: int, db: Session = Depends(get_db)):
     reply_map = {row.id: row for row in rows}
     # 被引用消息可能落在分页窗口外，补查一次
     missing_ids = {
-        row.reply_to_id for row in rows
+        row.reply_to_id
+        for row in rows
         if row.reply_to_id and row.reply_to_id not in reply_map
     }
     if missing_ids:
         extras = (
             db.query(AgentMessage)
-            .filter(AgentMessage.project_id == project_id, AgentMessage.id.in_(missing_ids))
+            .filter(
+                AgentMessage.project_id == project_id, AgentMessage.id.in_(missing_ids)
+            )
             .all()
         )
         for row in extras:
@@ -305,14 +318,16 @@ async def chat(
             session.add(assistant)
             session.commit()
             session.refresh(assistant)
-            yield _sse({
-                "type": "done",
-                "content": answer,
-                "tool_calls": tool_calls,
-                "pending_insight_ids": pending_ids,
-                "id": assistant.id,
-                "user_message_id": user_msg_id,
-            })
+            yield _sse(
+                {
+                    "type": "done",
+                    "content": answer,
+                    "tool_calls": tool_calls,
+                    "pending_insight_ids": pending_ids,
+                    "id": assistant.id,
+                    "user_message_id": user_msg_id,
+                }
+            )
         finally:
             session.close()
 

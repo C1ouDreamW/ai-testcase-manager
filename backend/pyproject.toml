@@ -35,3 +35,8 @@ dev = [
 [tool.ruff.lint.per-file-ignores]
 "app/models/*.py" = ["F821"]
 "app/database.py" = ["F401"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+# SQLAlchemy 查询中的 `== False` 是惯用写法，E712 属误报
+ignore = ["E712"]

@@ -119,7 +119,11 @@ def ensure_bootstrap_admin_config(db: Session, admin_user_id: int) -> SystemConf
     if row:
         return row
 
-    eval_config = (settings.eval_llm_base_url, settings.eval_llm_api_key, settings.eval_llm_model)
+    eval_config = (
+        settings.eval_llm_base_url,
+        settings.eval_llm_api_key,
+        settings.eval_llm_model,
+    )
     if not all(eval_config):
         eval_config = ("", "", "")
 
@@ -219,7 +223,9 @@ def update_config(db: Session, user_id: int, data: dict) -> SystemConfig:
         data.get("eval_llm_model", row.eval_llm_model),
     )
     if any(final_eval) and not all(final_eval):
-        raise ValueError("评测专用模型需同时填写 API 地址、模型和 Key；三项全部留空则复用生成模型")
+        raise ValueError(
+            "评测专用模型需同时填写 API 地址、模型和 Key；三项全部留空则复用生成模型"
+        )
 
     final_vision = (
         data.get("vision_base_url", row.vision_base_url),
@@ -227,7 +233,9 @@ def update_config(db: Session, user_id: int, data: dict) -> SystemConfig:
         data.get("vision_model", row.vision_model),
     )
     if any(final_vision) and not all(final_vision):
-        raise ValueError("视觉模型需同时填写 API 地址、模型和 Key；三项全部留空则不启用设计稿解析")
+        raise ValueError(
+            "视觉模型需同时填写 API 地址、模型和 Key；三项全部留空则不启用设计稿解析"
+        )
 
     final_rerank = (
         data.get("rerank_base_url", row.rerank_base_url),
@@ -235,7 +243,9 @@ def update_config(db: Session, user_id: int, data: dict) -> SystemConfig:
         data.get("rerank_model", row.rerank_model),
     )
     if any(final_rerank) and not all(final_rerank):
-        raise ValueError("Rerank 模型需同时填写 API 地址、模型和 Key；三项全部留空则不启用精排")
+        raise ValueError(
+            "Rerank 模型需同时填写 API 地址、模型和 Key；三项全部留空则不启用精排"
+        )
 
     if "llm_api_key" in data and data["llm_api_key"] is not None:
         row.llm_api_key = _normalize_api_key(data["llm_api_key"])

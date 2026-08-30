@@ -433,7 +433,9 @@ class TestTaskCreate(BaseModel):
     description: str = ""
     batch_name: str = Field("线下测试", min_length=1, max_length=100)  # 首个批次名称
     case_ids: list[int] = []
-    source_task_id: int | None = None  # 传入生成任务 ID 时，自动导入该任务已采纳入库的用例
+    source_task_id: int | None = (
+        None  # 传入生成任务 ID 时，自动导入该任务已采纳入库的用例
+    )
 
     @model_validator(mode="after")
     def validate_case_source(self):
@@ -569,7 +571,9 @@ class SystemSettingsOut(BaseModel):
 
 
 class SettingsTestRequest(BaseModel):
-    target: Literal["generation", "eval", "vision", "embedding", "rerank"] = "generation"
+    target: Literal["generation", "eval", "vision", "embedding", "rerank"] = (
+        "generation"
+    )
 
 
 class SettingsTestOut(BaseModel):
@@ -600,6 +604,7 @@ class SystemSettingsUpdate(BaseModel):
 
 # ---------- 测试助手 Agent ----------
 
+
 class AgentAttachmentIn(BaseModel):
     asset_id: int
     asset_type: str = "image"  # image / figma
@@ -617,7 +622,11 @@ class AgentChatRequest(BaseModel):
 
     @model_validator(mode="after")
     def require_question_or_attachments(self):
-        if not (self.question or "").strip() and not self.asset_ids and not self.attachments:
+        if (
+            not (self.question or "").strip()
+            and not self.asset_ids
+            and not self.attachments
+        ):
             raise ValueError("请输入问题或附带设计稿")
         if not (self.question or "").strip() and (self.asset_ids or self.attachments):
             self.question = "请解析这些设计稿并列出功能点，等待我确认后再合并。"
@@ -656,6 +665,7 @@ class AgentMessageOut(BaseModel):
 
 
 # ---------- 评测 ----------
+
 
 class EvalCheckpoint(BaseModel):
     text: str

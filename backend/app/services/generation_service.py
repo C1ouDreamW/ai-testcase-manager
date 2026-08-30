@@ -80,10 +80,7 @@ def build_strategy_config(
         "strategy": registry.normalize_strategy(strategy),
         "specialist_skills": validated_skills,
         "use_knowledge": bool(use_knowledge),
-        "skill_versions": {
-            skill.name: skill.version
-            for skill in skills
-        },
+        "skill_versions": {skill.name: skill.version for skill in skills},
         "prompt_fingerprints": {
             skill.name: fingerprint
             for skill in skills
@@ -156,11 +153,15 @@ def _skill_context(
     )
 
 
-async def structure_requirements(db: Session, document: RequirementDocument) -> list[RequirementItem]:
+async def structure_requirements(
+    db: Session, document: RequirementDocument
+) -> list[RequirementItem]:
     model_config = get_project_runtime_config(db, document.project_id)
     items_data = await parse_requirements(document.raw_content, model_config)
     document.status = "structured"
-    db.query(RequirementItem).filter(RequirementItem.document_id == document.id).delete()
+    db.query(RequirementItem).filter(
+        RequirementItem.document_id == document.id
+    ).delete()
 
     db_items = []
     for idx, item in enumerate(items_data):
@@ -184,7 +185,9 @@ async def structure_requirements(db: Session, document: RequirementDocument) -> 
     return db_items
 
 
-def confirm_requirements(db: Session, document_id: int, item_ids: list[int] | None = None):
+def confirm_requirements(
+    db: Session, document_id: int, item_ids: list[int] | None = None
+):
     if item_ids is not None:
         db.query(RequirementItem).filter(
             RequirementItem.document_id == document_id,
@@ -195,9 +198,9 @@ def confirm_requirements(db: Session, document_id: int, item_ids: list[int] | No
             ~RequirementItem.id.in_(item_ids),
         ).update({"confirmed": False}, synchronize_session=False)
     else:
-        db.query(RequirementItem).filter(RequirementItem.document_id == document_id).update(
-            {"confirmed": True}, synchronize_session=False
-        )
+        db.query(RequirementItem).filter(
+            RequirementItem.document_id == document_id
+        ).update({"confirmed": True}, synchronize_session=False)
 
     doc = db.get(RequirementDocument, document_id)
     doc.status = "confirmed"
@@ -247,10 +250,16 @@ async def run_judge_for_task(
         return
 
     item_ids = {d.requirement_item_id for d in drafts if d.requirement_item_id}
-    items_map = {
-        item.id: item
-        for item in db.query(RequirementItem).filter(RequirementItem.id.in_(item_ids)).all()
-    } if item_ids else {}
+    items_map = (
+        {
+            item.id: item
+            for item in db.query(RequirementItem)
+            .filter(RequirementItem.id.in_(item_ids))
+            .all()
+        }
+        if item_ids
+        else {}
+    )
 
     grouped: dict[int | None, list[GeneratedCaseDraft]] = {}
     for d in drafts:
@@ -268,7 +277,10 @@ async def run_judge_for_task(
         try:
             result = await registry.run(
                 "case_judge",
-                {"feature_item": feature_data, "cases": [_draft_for_judge(d) for d in group]},
+                {
+                    "feature_item": feature_data,
+                    "cases": [_draft_for_judge(d) for d in group],
+                },
                 context,
             )
         except Exception:
@@ -299,10 +311,14 @@ def adopt_drafts(db: Session, task_id: int, draft_ids: list[int]) -> list[TestCa
     adopted = []
 
     for draft_id in draft_ids:
-        draft = db.query(GeneratedCaseDraft).filter(
-            GeneratedCaseDraft.id == draft_id,
-            GeneratedCaseDraft.task_id == task_id,
-        ).first()
+        draft = (
+            db.query(GeneratedCaseDraft)
+            .filter(
+                GeneratedCaseDraft.id == draft_id,
+                GeneratedCaseDraft.task_id == task_id,
+            )
+            .first()
+        )
         if not draft:
             continue
 
@@ -329,7 +345,9 @@ def adopt_drafts(db: Session, task_id: int, draft_ids: list[int]) -> list[TestCa
     return adopted
 
 
-def reject_drafts(db: Session, task_id: int, draft_ids: list[int], reject_reason: str = ""):
+def reject_drafts(
+    db: Session, task_id: int, draft_ids: list[int], reject_reason: str = ""
+):
     db.query(GeneratedCaseDraft).filter(
         GeneratedCaseDraft.task_id == task_id,
         GeneratedCaseDraft.id.in_(draft_ids),

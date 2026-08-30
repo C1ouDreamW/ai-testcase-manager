@@ -35,7 +35,9 @@ class GenerationConfigSnapshotTests(unittest.TestCase):
         self.assertIn("case_writer", snapshot["prompt_fingerprints"])
         self.assertEqual(snapshot["generation_parameters"]["temperature"], 0.3)
         self.assertEqual(snapshot["models"]["generation"]["model"], "generation-model")
-        self.assertEqual(snapshot["retrieval"]["mode"], "vector_bm25_rrf_optional_rerank")
+        self.assertEqual(
+            snapshot["retrieval"]["mode"], "vector_bm25_rrf_optional_rerank"
+        )
         self.assertEqual(snapshot["retrieval"]["embedding_adapter"], "langchain_openai")
         self.assertEqual(snapshot["retrieval"]["vector_store"], "langchain_chroma")
         self.assertEqual(snapshot["retrieval"]["collection_version"], "lc_v1")

@@ -88,6 +88,7 @@ def chunk_markdown(text: str) -> list[dict]:
 
 # ---------- 入库 / 删除 ----------
 
+
 async def ingest_document(db: Session, doc: KnowledgeDocument) -> None:
     """分块 → LangChain 向量化入库 → 写入 SQLite。失败时置为 failed 并记录原因。"""
     vector_store = None
@@ -124,12 +125,14 @@ async def ingest_document(db: Session, doc: KnowledgeDocument) -> None:
             await vector_store.aadd_documents(documents=documents, ids=ids)
 
         for i, c in enumerate(chunks):
-            db.add(KnowledgeChunk(
-                document_id=doc.id,
-                content=c["content"],
-                heading=c["heading"],
-                chroma_id=ids[i],
-            ))
+            db.add(
+                KnowledgeChunk(
+                    document_id=doc.id,
+                    content=c["content"],
+                    heading=c["heading"],
+                    chroma_id=ids[i],
+                )
+            )
         doc.vector_collection = collection_name
         doc.status = "ready"
         doc.chunk_count = len(chunks)
@@ -158,7 +161,9 @@ def delete_document_vectors(doc: KnowledgeDocument) -> None:
     if not ids:
         return
     try:
-        create_vector_store(doc.vector_collection, create_if_missing=False).delete(ids=ids)
+        create_vector_store(doc.vector_collection, create_if_missing=False).delete(
+            ids=ids
+        )
     except Exception:
         pass  # 向量清理失败不阻塞文档删除（collection 可能已不存在）
 
@@ -212,7 +217,9 @@ async def _vector_search(
     try:
         async with embedding_context(config) as embeddings:
             vector_store = create_vector_store(collection_name, embeddings)
-            results = await vector_store.asimilarity_search_with_relevance_scores(query, k=top_n)
+            results = await vector_store.asimilarity_search_with_relevance_scores(
+                query, k=top_n
+            )
     except Exception as exc:
         normalized_error = normalize_embedding_error(exc)
         if normalized_error is exc:
@@ -224,14 +231,16 @@ async def _vector_search(
         if score < threshold:
             continue
         meta = document.metadata or {}
-        hits.append({
-            "chroma_id": meta.get("chroma_id", ""),
-            "content": meta.get("content", document.page_content),
-            "title": meta.get("title", ""),
-            "heading": meta.get("heading", ""),
-            "source_type": meta.get("source_type", "doc"),
-            "score": round(score, 3),
-        })
+        hits.append(
+            {
+                "chroma_id": meta.get("chroma_id", ""),
+                "content": meta.get("content", document.page_content),
+                "title": meta.get("title", ""),
+                "heading": meta.get("heading", ""),
+                "source_type": meta.get("source_type", "doc"),
+                "score": round(score, 3),
+            }
+        )
     return hits
 
 
@@ -259,7 +268,9 @@ def _bm25_search(db: Session, project_id: int, query: str, top_n: int) -> list[d
 
     # 标题路径拼进正文参与打分，与向量化时的文本口径一致
     corpus = [
-        _tokenize(f"{chunk.heading}\n{chunk.content}" if chunk.heading else chunk.content)
+        _tokenize(
+            f"{chunk.heading}\n{chunk.content}" if chunk.heading else chunk.content
+        )
         for chunk, _ in rows
     ]
     if not any(corpus):
@@ -272,18 +283,22 @@ def _bm25_search(db: Session, project_id: int, query: str, top_n: int) -> list[d
     for (chunk, doc), score in ranked[:top_n]:
         if score <= 0:
             break
-        hits.append({
-            "chroma_id": chunk.chroma_id,
-            "content": chunk.content,
-            "title": doc.title,
-            "heading": chunk.heading,
-            "source_type": doc.source_type,
-            "score": 0.0,  # BM25 分数与向量相似度不可比，展示分以向量/精排为准
-        })
+        hits.append(
+            {
+                "chroma_id": chunk.chroma_id,
+                "content": chunk.content,
+                "title": doc.title,
+                "heading": chunk.heading,
+                "source_type": doc.source_type,
+                "score": 0.0,  # BM25 分数与向量相似度不可比，展示分以向量/精排为准
+            }
+        )
     return hits
 
 
-def _rrf_fuse(vector_hits: list[dict], keyword_hits: list[dict], k: int = RRF_K) -> list[dict]:
+def _rrf_fuse(
+    vector_hits: list[dict], keyword_hits: list[dict], k: int = RRF_K
+) -> list[dict]:
     """RRF 倒数排名融合：融合分 = sum(1 / (k + 名次))，双路命中的候选自然靠前。
 
     返回按融合分降序的去重候选，附加 match 字段（vector / keyword / both）。
@@ -304,7 +319,9 @@ def _rrf_fuse(vector_hits: list[dict], keyword_hits: list[dict], k: int = RRF_K)
     return sorted(candidates.values(), key=lambda c: c["rrf_score"], reverse=True)
 
 
-async def _rerank(query: str, candidates: list[dict], config: RuntimeModelConfig, top_k: int) -> list[dict]:
+async def _rerank(
+    query: str, candidates: list[dict], config: RuntimeModelConfig, top_k: int
+) -> list[dict]:
     """外部 Rerank API 精排，失败时降级为 RRF 融合顺序，不阻塞调用方。"""
     try:
         ranked = await rerank_documents(
@@ -341,14 +358,19 @@ async def retrieve(
     """
     ready_count = (
         db.query(KnowledgeDocument)
-        .filter(KnowledgeDocument.project_id == project_id, KnowledgeDocument.status == "ready")
+        .filter(
+            KnowledgeDocument.project_id == project_id,
+            KnowledgeDocument.status == "ready",
+        )
         .count()
     )
     if not ready_count:
         return []
 
     model_config = model_config or get_project_runtime_config(db, project_id)
-    vector_hits = await _vector_search(project_id, query, model_config, RECALL_TOP_K, threshold)
+    vector_hits = await _vector_search(
+        project_id, query, model_config, RECALL_TOP_K, threshold
+    )
     keyword_hits = _bm25_search(db, project_id, query, RECALL_TOP_K)
     if not vector_hits and not keyword_hits:
         return []
@@ -368,7 +390,10 @@ async def retrieve(
 def has_ready_knowledge(db: Session, project_id: int) -> bool:
     return (
         db.query(KnowledgeDocument)
-        .filter(KnowledgeDocument.project_id == project_id, KnowledgeDocument.status == "ready")
+        .filter(
+            KnowledgeDocument.project_id == project_id,
+            KnowledgeDocument.status == "ready",
+        )
         .count()
         > 0
     )

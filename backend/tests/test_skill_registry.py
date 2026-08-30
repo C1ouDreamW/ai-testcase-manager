@@ -32,7 +32,9 @@ class SkillRegistryTests(unittest.TestCase):
 
     def test_run_case_writer_mock(self):
         async def _run():
-            ctx = SkillContext(model_config=RuntimeModelConfig(), use_mock=True, strategy="quick")
+            ctx = SkillContext(
+                model_config=RuntimeModelConfig(), use_mock=True, strategy="quick"
+            )
             result = await self.registry.run(
                 "case_writer",
                 {"feature_item": {"feature": "登录"}, "strategy": "quick"},

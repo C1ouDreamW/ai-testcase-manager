@@ -42,12 +42,20 @@ class GenerationGraphRoutingTests(unittest.TestCase):
             _structured_output_failure({"retry_count": 1}, error)
 
     def test_empty_valid_cases_retries_once_then_persists_uncovered_feature(self):
-        self.assertEqual(route_after_validation({"current_cases": [], "retry_count": 0}), "retry")
-        self.assertEqual(route_after_validation({"current_cases": [], "retry_count": 1}), "persist")
+        self.assertEqual(
+            route_after_validation({"current_cases": [], "retry_count": 0}), "retry"
+        )
+        self.assertEqual(
+            route_after_validation({"current_cases": [], "retry_count": 1}), "persist"
+        )
 
     def test_feature_loop_routes_to_quality_after_last_item(self):
-        self.assertEqual(route_next_feature({"feature_index": 1, "feature_ids": [1, 2]}), "next")
-        self.assertEqual(route_next_feature({"feature_index": 2, "feature_ids": [1, 2]}), "quality")
+        self.assertEqual(
+            route_next_feature({"feature_index": 1, "feature_ids": [1, 2]}), "next"
+        )
+        self.assertEqual(
+            route_next_feature({"feature_index": 2, "feature_ids": [1, 2]}), "quality"
+        )
 
 
 if __name__ == "__main__":

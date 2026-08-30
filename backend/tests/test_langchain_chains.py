@@ -30,7 +30,11 @@ class LangChainStructuredOutputTests(unittest.IsolatedAsyncioTestCase):
             content='[{"title":"正确登录","priority":"P0","case_type":"functional",'
             '"is_smoke":true,"precondition":"已有账号","steps":["输入账号密码","点击登录"],'
             '"expected_result":"进入首页"}]',
-            usage_metadata={"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
+            usage_metadata={
+                "input_tokens": 20,
+                "output_tokens": 10,
+                "total_tokens": 30,
+            },
         )
         create_model.return_value = model
         counter = start_token_tracking()

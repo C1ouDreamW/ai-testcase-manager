@@ -47,8 +47,12 @@ def _parse_scope(raw: str) -> dict | None:
     if not isinstance(data, dict):
         return None
     normalized = {
-        "in_scope": [str(s).strip() for s in (data.get("in_scope") or []) if str(s).strip()],
-        "out_scope": [str(s).strip() for s in (data.get("out_scope") or []) if str(s).strip()],
+        "in_scope": [
+            str(s).strip() for s in (data.get("in_scope") or []) if str(s).strip()
+        ],
+        "out_scope": [
+            str(s).strip() for s in (data.get("out_scope") or []) if str(s).strip()
+        ],
         "risks": [str(s).strip() for s in (data.get("risks") or []) if str(s).strip()],
     }
     return normalized if any(normalized.values()) else None
@@ -65,7 +69,9 @@ def _strategy_config(task: GenerationTask) -> dict:
     preset = data.get("strategy") or data.get("preset") or task.strategy
     return {
         "strategy": registry.normalize_strategy(preset),
-        "specialist_skills": registry.validate_specialist_skills(data.get("specialist_skills") or []),
+        "specialist_skills": registry.validate_specialist_skills(
+            data.get("specialist_skills") or []
+        ),
         "use_knowledge": bool(data.get("use_knowledge", False)),
     }
 
@@ -80,7 +86,9 @@ def _skill_context(task: GenerationTask, strategy: str, model_config) -> SkillCo
     )
 
 
-def _structured_output_failure(state: GenerationState, exc: OutputParserException) -> dict:
+def _structured_output_failure(
+    state: GenerationState, exc: OutputParserException
+) -> dict:
     """首次格式错误交给 Graph 重试；第二次直接失败并停在生成节点前。"""
     if state.get("retry_count", 0) >= 1:
         raise RuntimeError(f"模型连续两次未返回有效结构化结果：{exc}") from exc
@@ -111,8 +119,12 @@ async def load_task(state: GenerationState) -> dict:
         task.progress = 0
         task.stage = "准备中"
         task.error_message = ""
-        db.query(GeneratedCaseDraft).filter(GeneratedCaseDraft.task_id == task.id).delete()
-        existing_report = db.query(QualityReport).filter(QualityReport.task_id == task.id).first()
+        db.query(GeneratedCaseDraft).filter(
+            GeneratedCaseDraft.task_id == task.id
+        ).delete()
+        existing_report = (
+            db.query(QualityReport).filter(QualityReport.task_id == task.id).first()
+        )
         if existing_report:
             db.delete(existing_report)
         db.commit()
@@ -154,7 +166,9 @@ async def prepare_feature(state: GenerationState) -> dict:
         return {
             "current_feature_id": item.id,
             "current_feature": _feature_data(item),
-            "retrieval_query": " ".join(filter(None, [item.module, item.feature, item.description])),
+            "retrieval_query": " ".join(
+                filter(None, [item.module, item.feature, item.description])
+            ),
             "knowledge": [],
             "current_cases": [],
             "retry_count": 0,
@@ -171,7 +185,9 @@ async def retrieve_knowledge(state: GenerationState) -> dict:
     db = SessionLocal()
     try:
         task = _task_or_raise(db, state["task_id"])
-        task.stage = f"检索知识：{(state.get('current_feature') or {}).get('feature', '')}"
+        task.stage = (
+            f"检索知识：{(state.get('current_feature') or {}).get('feature', '')}"
+        )
         db.commit()
         model_config = get_project_runtime_config(db, state["project_id"])
         retriever = AITCHybridRetriever(
@@ -207,7 +223,9 @@ async def generate_core_cases(state: GenerationState) -> dict:
         task = _task_or_raise(db, state["task_id"])
         model_config = get_project_runtime_config(db, task.project_id)
         context = _skill_context(task, state["strategy"], model_config)
-        task.stage = f"生成基础用例：{(state.get('current_feature') or {}).get('feature', '')}"
+        task.stage = (
+            f"生成基础用例：{(state.get('current_feature') or {}).get('feature', '')}"
+        )
         db.commit()
         try:
             result = await get_registry().run(
@@ -222,7 +240,10 @@ async def generate_core_cases(state: GenerationState) -> dict:
             )
         except OutputParserException as exc:
             return _structured_output_failure(state, exc)
-        return {"current_cases": list(result.get("cases") or []), "generation_error": ""}
+        return {
+            "current_cases": list(result.get("cases") or []),
+            "generation_error": "",
+        }
     finally:
         db.close()
 
@@ -342,7 +363,11 @@ async def detect_task_duplicates(state: GenerationState) -> dict:
         task = _task_or_raise(db, state["task_id"])
         task.stage = "重复检测"
         task.progress = 85
-        drafts = db.query(GeneratedCaseDraft).filter(GeneratedCaseDraft.task_id == task.id).all()
+        drafts = (
+            db.query(GeneratedCaseDraft)
+            .filter(GeneratedCaseDraft.task_id == task.id)
+            .all()
+        )
         duplicate_count = detect_duplicates(drafts)
         db.commit()
         return {"duplicate_count": duplicate_count}
@@ -376,7 +401,11 @@ async def build_task_report(state: GenerationState) -> dict:
             .order_by(RequirementItem.sort_order)
             .all()
         )
-        drafts = db.query(GeneratedCaseDraft).filter(GeneratedCaseDraft.task_id == task.id).all()
+        drafts = (
+            db.query(GeneratedCaseDraft)
+            .filter(GeneratedCaseDraft.task_id == task.id)
+            .all()
+        )
         item_case_map: dict[int, list[GeneratedCaseDraft]] = {}
         for draft in drafts:
             item_case_map.setdefault(draft.requirement_item_id, []).append(draft)
@@ -386,7 +415,9 @@ async def build_task_report(state: GenerationState) -> dict:
             item_case_map,
             state.get("duplicate_count", 0),
         )
-        existing = db.query(QualityReport).filter(QualityReport.task_id == task.id).first()
+        existing = (
+            db.query(QualityReport).filter(QualityReport.task_id == task.id).first()
+        )
         if existing:
             db.delete(existing)
         db.add(QualityReport(task_id=task.id, **report_data))

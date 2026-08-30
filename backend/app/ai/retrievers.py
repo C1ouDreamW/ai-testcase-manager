@@ -1,6 +1,9 @@
 from typing import Any
 
-from langchain_core.callbacks import AsyncCallbackManagerForRetrieverRun, CallbackManagerForRetrieverRun
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForRetrieverRun,
+    CallbackManagerForRetrieverRun,
+)
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 from pydantic import ConfigDict, Field
@@ -53,4 +56,3 @@ class AITCHybridRetriever(BaseRetriever):
 def documents_to_knowledge(documents: list[Document]) -> list[dict]:
     """转回现有 Skill Prompt 使用的知识字典协议。"""
     return [{"content": doc.page_content, **doc.metadata} for doc in documents]
-

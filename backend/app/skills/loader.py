@@ -4,7 +4,7 @@ from typing import Any
 
 import yaml
 
-from app.skills.base import SkillContext, SkillMeta, SkillRunFn, SkillUIConfig
+from app.skills.base import SkillMeta, SkillRunFn, SkillUIConfig
 
 SKILLS_ROOT = Path(__file__).resolve().parent
 
@@ -62,7 +62,9 @@ def _load_handler(skill_dir: Path, skill_name: str) -> SkillRunFn:
     return run_fn
 
 
-def discover_skills(root: Path | None = None) -> tuple[dict[str, SkillMeta], dict[str, SkillRunFn]]:
+def discover_skills(
+    root: Path | None = None,
+) -> tuple[dict[str, SkillMeta], dict[str, SkillRunFn]]:
     root = root or SKILLS_ROOT
     metas: dict[str, SkillMeta] = {}
     handlers: dict[str, SkillRunFn] = {}

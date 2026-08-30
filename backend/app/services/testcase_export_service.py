@@ -64,6 +64,7 @@ MEDIA_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # ---------------------------------------------------------------- row builder
 
+
 def _steps_to_text(raw: Any) -> str:
     """把 list / JSON 字符串 / 纯文本统一格式化为多行「1. ... 2. ...」。"""
     if raw is None:
@@ -91,6 +92,7 @@ def build_export_row(case: Any, index: int) -> dict:
     - 允许 dict、SQLAlchemy 对象（用 getattr 兜底）
     - module / feature 从关联 RequirementItem 上补齐时，需上层调用者提前塞进 dict
     """
+
     def _get(key: str, default: Any = "") -> Any:
         if isinstance(case, dict):
             return case.get(key, default)
@@ -123,6 +125,7 @@ def _columns(include_review: bool) -> list[tuple[str, str]]:
 
 # ---------------------------------------------------------------- Markdown (大纲式)
 
+
 def _strip_step_number(step: str) -> str:
     """去掉 '1. xxx' 之类的编号前缀，便于用 Markdown 列表重新展示。"""
     if ". " in step:
@@ -132,7 +135,9 @@ def _strip_step_number(step: str) -> str:
     return step
 
 
-def _group_rows(rows: list[dict]) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, list[dict]]]]:
+def _group_rows(
+    rows: list[dict],
+) -> tuple[list[str], dict[str, list[str]], dict[str, dict[str, list[dict]]]]:
     """按 module → feature 分组，保留首次出现的顺序。"""
     module_order: list[str] = []
     feature_order: dict[str, list[str]] = {}
@@ -156,7 +161,9 @@ def _split_text_lines(text: str) -> list[str]:
     return [line.strip() for line in (text or "").splitlines() if line.strip()]
 
 
-def export_testcases_md(title: str, rows: list[dict], include_review: bool = False) -> str:
+def export_testcases_md(
+    title: str, rows: list[dict], include_review: bool = False
+) -> str:
     """大纲式 Markdown：模块 → 功能点 → 用例 → 前置/步骤/预期。
 
     - 用例标题前用 `【冒烟】【类型】【优先级】` 标签
@@ -211,6 +218,7 @@ def export_testcases_md(title: str, rows: list[dict], include_review: bool = Fal
 
 # ---------------------------------------------------------------- Excel
 
+
 def export_testcases_xlsx(title: str, rows: list[dict], include_review: bool) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
@@ -243,6 +251,7 @@ def export_testcases_xlsx(title: str, rows: list[dict], include_review: bool) ->
 
 
 # ---------------------------------------------------------------- dispatch
+
 
 def export_testcases(
     title: str,

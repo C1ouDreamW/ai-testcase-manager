@@ -98,7 +98,9 @@ class SkillRegistry:
                 result.append(resolved)
         return result
 
-    async def run(self, name: str, inputs: dict[str, Any], context: SkillContext) -> dict[str, Any]:
+    async def run(
+        self, name: str, inputs: dict[str, Any], context: SkillContext
+    ) -> dict[str, Any]:
         resolved = self.resolve_skill_name(name)
         if resolved not in self._handlers:
             raise KeyError(f"Skill 不存在: {name}")

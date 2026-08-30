@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from app.schemas import SkillCatalogOut, SkillOut, StrategyOut
 from app.skills.registry import get_registry

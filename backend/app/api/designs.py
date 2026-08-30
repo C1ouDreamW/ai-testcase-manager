@@ -68,10 +68,14 @@ async def upload_design(
     db: Session = Depends(get_db),
 ):
     design_service.get_document(db, project_id, document_id)
-    image_count = db.query(DesignAsset).filter(
-        DesignAsset.document_id == document_id,
-        DesignAsset.asset_type == "image",
-    ).count()
+    image_count = (
+        db.query(DesignAsset)
+        .filter(
+            DesignAsset.document_id == document_id,
+            DesignAsset.asset_type == "image",
+        )
+        .count()
+    )
     if image_count >= MAX_IMAGES_PER_DOCUMENT:
         raise HTTPException(400, f"每份需求最多上传 {MAX_IMAGES_PER_DOCUMENT} 张设计稿")
 
@@ -90,7 +94,9 @@ async def upload_design(
     if (file.content_type or "").lower() != content_type:
         raise HTTPException(400, "文件 MIME 类型与实际图片格式不一致")
 
-    relative_path = Path(str(project_id)) / str(document_id) / f"{uuid4().hex}{extension}"
+    relative_path = (
+        Path(str(project_id)) / str(document_id) / f"{uuid4().hex}{extension}"
+    )
     absolute_path = (design_root() / relative_path).resolve()
     absolute_path.parent.mkdir(parents=True, exist_ok=True)
     absolute_path.write_bytes(data)
@@ -118,7 +124,9 @@ async def upload_design(
 
 
 @router.post("/figma", response_model=DesignAssetOut, status_code=201)
-def add_figma_link(project_id: int, data: FigmaLinkCreate, db: Session = Depends(get_db)):
+def add_figma_link(
+    project_id: int, data: FigmaLinkCreate, db: Session = Depends(get_db)
+):
     design_service.get_document(db, project_id, data.document_id)
     url = _validate_figma_url(data.url)
     asset = DesignAsset(
@@ -159,7 +167,10 @@ def merge_design_insights(
     db: Session = Depends(get_db),
 ):
     result = design_service.merge_insights(
-        db, project_id, document_id, data.insight_ids or None,
+        db,
+        project_id,
+        document_id,
+        data.insight_ids or None,
     )
     return result["document"]
 

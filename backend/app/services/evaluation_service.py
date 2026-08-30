@@ -44,7 +44,9 @@ def _parse_checkpoints(sample: EvalSample) -> list[dict]:
         if isinstance(cp, str):
             result.append({"text": cp, "keywords": []})
         elif isinstance(cp, dict) and (cp.get("text") or "").strip():
-            keywords = [str(k).strip() for k in (cp.get("keywords") or []) if str(k).strip()]
+            keywords = [
+                str(k).strip() for k in (cp.get("keywords") or []) if str(k).strip()
+            ]
             result.append({"text": str(cp["text"]).strip(), "keywords": keywords})
     return result
 
@@ -74,19 +76,30 @@ async def _compute_recall(
         cp_lines = [f"{i}. {cp['text']}" for i, cp in enumerate(checkpoints)]
         case_lines = [
             json.dumps(
-                {"title": d.title, "steps": d.steps, "expected_result": d.expected_result},
+                {
+                    "title": d.title,
+                    "steps": d.steps,
+                    "expected_result": d.expected_result,
+                },
                 ensure_ascii=False,
             )
             for d in drafts
         ]
-        user_prompt = "标准测试点：\n" + "\n".join(cp_lines) + "\n\n生成用例：\n" + "\n".join(case_lines)
+        user_prompt = (
+            "标准测试点：\n"
+            + "\n".join(cp_lines)
+            + "\n\n生成用例：\n"
+            + "\n".join(case_lines)
+        )
         try:
             indexes = await judge_checkpoint_coverage(
                 COVERAGE_PROMPT,
                 user_prompt,
                 model_config,
             )
-            covered = {i for i in indexes if isinstance(i, int) and 0 <= i < len(checkpoints)}
+            covered = {
+                i for i in indexes if isinstance(i, int) and 0 <= i < len(checkpoints)
+            }
         except Exception:
             covered = _keyword_coverage(checkpoints, corpus)
 
@@ -124,9 +137,13 @@ async def _watch_task_progress(
 
 
 async def _eval_one_sample(
-    db: Session, run: EvalRun, sample: EvalSample, strategy: str,
+    db: Session,
+    run: EvalRun,
+    sample: EvalSample,
+    strategy: str,
     model_config: RuntimeModelConfig,
-    base_pct: float = 0.0, slice_pct: float = 100.0,
+    base_pct: float = 0.0,
+    slice_pct: float = 100.0,
 ) -> dict:
     started = time.monotonic()
 
@@ -168,7 +185,9 @@ async def _eval_one_sample(
     db.refresh(task)
 
     stop = asyncio.Event()
-    watcher = asyncio.create_task(_watch_task_progress(run.id, task.id, base_pct, slice_pct, stop))
+    watcher = asyncio.create_task(
+        _watch_task_progress(run.id, task.id, base_pct, slice_pct, stop)
+    )
     try:
         await run_generation_workflow(task.id)
     except Exception:
@@ -188,7 +207,9 @@ async def _eval_one_sample(
     run.stage = "召回率判定"
     db.commit()
     if success:
-        recall, uncovered_checkpoints = await _compute_recall(checkpoints, drafts, model_config)
+        recall, uncovered_checkpoints = await _compute_recall(
+            checkpoints, drafts, model_config
+        )
     elif checkpoints:
         recall, uncovered_checkpoints = 0.0, [cp["text"] for cp in checkpoints]
     else:
@@ -207,7 +228,11 @@ async def _eval_one_sample(
         "avg_judge_score": report.avg_judge_score if report else None,
         "hallucination_count": report.hallucination_count if report else 0,
         "duplicate_count": report.duplicate_count if report else 0,
-        "duplicate_rate": round((report.duplicate_count if report else 0) / total * 100, 1) if total else 0.0,
+        "duplicate_rate": round(
+            (report.duplicate_count if report else 0) / total * 100, 1
+        )
+        if total
+        else 0.0,
         "tokens": task.tokens_used or 0,
         "duration_sec": round(time.monotonic() - started, 1),
     }
@@ -220,7 +245,9 @@ def _aggregate(sample_metrics: list[dict]) -> dict:
     usable_cases = sum(m["usable_cases"] for m in sample_metrics)
     duplicate_count = sum(m["duplicate_count"] for m in sample_metrics)
     recalls = [m["recall"] for m in sample_metrics if m["recall"] is not None]
-    judge_scores = [m["avg_judge_score"] for m in sample_metrics if m["avg_judge_score"] is not None]
+    judge_scores = [
+        m["avg_judge_score"] for m in sample_metrics if m["avg_judge_score"] is not None
+    ]
 
     def rate(part, whole):
         return round(part / whole * 100, 1) if whole else 0.0
@@ -233,7 +260,9 @@ def _aggregate(sample_metrics: list[dict]) -> dict:
         "recall": round(sum(recalls) / len(recalls), 1) if recalls else None,
         "duplicate_rate": rate(duplicate_count, total_cases),
         "hallucination_count": sum(m["hallucination_count"] for m in sample_metrics),
-        "avg_judge_score": round(sum(judge_scores) / len(judge_scores), 2) if judge_scores else None,
+        "avg_judge_score": round(sum(judge_scores) / len(judge_scores), 2)
+        if judge_scores
+        else None,
         "total_tokens": sum(m["tokens"] for m in sample_metrics),
         "total_duration_sec": round(sum(m["duration_sec"] for m in sample_metrics), 1),
     }
@@ -267,8 +296,13 @@ async def run_evaluation(db: Session, run_id: int) -> None:
             db.commit()
 
             metrics = await _eval_one_sample(
-                db, run, result.sample, strategy, model_config,
-                base_pct=idx / total * 100, slice_pct=100 / total,
+                db,
+                run,
+                result.sample,
+                strategy,
+                model_config,
+                base_pct=idx / total * 100,
+                slice_pct=100 / total,
             )
             result.task_id = metrics["task_id"]
             result.status = "completed" if metrics["success"] else "failed"

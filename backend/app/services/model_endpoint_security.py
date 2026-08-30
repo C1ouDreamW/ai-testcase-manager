@@ -59,7 +59,13 @@ def validate_model_base_url(value: str) -> str:
 
     if parsed.scheme.lower() != "https":
         raise ModelEndpointError("模型 API 地址必须使用 HTTPS")
-    if not host or parsed.username or parsed.password or parsed.query or parsed.fragment:
+    if (
+        not host
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+    ):
         raise ModelEndpointError("模型 API 地址格式不正确")
     if port not in (None, 443):
         raise ModelEndpointError("模型 API 地址仅允许使用 HTTPS 443 端口")

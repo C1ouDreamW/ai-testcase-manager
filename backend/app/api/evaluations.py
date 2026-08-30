@@ -35,7 +35,11 @@ EVAL_PROJECT_NAME = "__evaluation__"
 
 def _eval_project(db: Session) -> Project:
     user_id = current_user_id(db)
-    project = db.query(Project).filter(Project.user_id == user_id, Project.is_eval == True).first()
+    project = (
+        db.query(Project)
+        .filter(Project.user_id == user_id, Project.is_eval == True)
+        .first()
+    )
     if not project:
         project = Project(
             user_id=user_id,
@@ -49,10 +53,14 @@ def _eval_project(db: Session) -> Project:
         except IntegrityError:
             # 同一用户首次并发进入评测页时，由唯一索引保证只保留一个隐藏项目。
             db.rollback()
-            project = db.query(Project).filter(
-                Project.user_id == user_id,
-                Project.is_eval == True,
-            ).first()
+            project = (
+                db.query(Project)
+                .filter(
+                    Project.user_id == user_id,
+                    Project.is_eval == True,
+                )
+                .first()
+            )
             if not project:
                 raise
         db.refresh(project)
@@ -118,6 +126,7 @@ def _sample_titles(db: Session, project_id: int) -> dict[int, str]:
 
 # ---------- 样本管理 ----------
 
+
 @router.get("/samples", response_model=list[EvalSampleOut])
 def list_samples(db: Session = Depends(get_db)):
     project_id = _eval_project(db).id
@@ -139,7 +148,9 @@ def create_sample(data: EvalSampleCreate, db: Session = Depends(get_db)):
         project_id=_eval_project(db).id,
         title=data.title.strip(),
         content=data.content,
-        checkpoints=json.dumps([cp.model_dump() for cp in data.checkpoints], ensure_ascii=False),
+        checkpoints=json.dumps(
+            [cp.model_dump() for cp in data.checkpoints], ensure_ascii=False
+        ),
     )
     db.add(sample)
     db.commit()
@@ -148,12 +159,18 @@ def create_sample(data: EvalSampleCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/samples/{sample_id}", response_model=EvalSampleOut)
-def update_sample(sample_id: int, data: EvalSampleUpdate, db: Session = Depends(get_db)):
+def update_sample(
+    sample_id: int, data: EvalSampleUpdate, db: Session = Depends(get_db)
+):
     project_id = _eval_project(db).id
-    sample = db.query(EvalSample).filter(
-        EvalSample.id == sample_id,
-        EvalSample.project_id == project_id,
-    ).first()
+    sample = (
+        db.query(EvalSample)
+        .filter(
+            EvalSample.id == sample_id,
+            EvalSample.project_id == project_id,
+        )
+        .first()
+    )
     if not sample:
         raise HTTPException(404, "评测样本不存在")
 
@@ -162,7 +179,9 @@ def update_sample(sample_id: int, data: EvalSampleUpdate, db: Session = Depends(
     if data.content is not None:
         sample.content = data.content
     if data.checkpoints is not None:
-        sample.checkpoints = json.dumps([cp.model_dump() for cp in data.checkpoints], ensure_ascii=False)
+        sample.checkpoints = json.dumps(
+            [cp.model_dump() for cp in data.checkpoints], ensure_ascii=False
+        )
     db.commit()
     db.refresh(sample)
     return _sample_to_out(sample)
@@ -171,10 +190,14 @@ def update_sample(sample_id: int, data: EvalSampleUpdate, db: Session = Depends(
 @router.delete("/samples/{sample_id}", status_code=204)
 def delete_sample(sample_id: int, db: Session = Depends(get_db)):
     project_id = _eval_project(db).id
-    sample = db.query(EvalSample).filter(
-        EvalSample.id == sample_id,
-        EvalSample.project_id == project_id,
-    ).first()
+    sample = (
+        db.query(EvalSample)
+        .filter(
+            EvalSample.id == sample_id,
+            EvalSample.project_id == project_id,
+        )
+        .first()
+    )
     if not sample:
         raise HTTPException(404, "评测样本不存在")
     used = db.query(EvalResult).filter(EvalResult.sample_id == sample_id).count()
@@ -185,6 +208,7 @@ def delete_sample(sample_id: int, db: Session = Depends(get_db)):
 
 
 # ---------- 评测运行 ----------
+
 
 async def _run_eval_background(run_id: int):
     db = SessionLocal()
@@ -217,17 +241,25 @@ def create_run(
     if not data.label.strip():
         raise HTTPException(400, "请填写运行标签（如 baseline）")
     project_id = _eval_project(db).id
-    samples = db.query(EvalSample).filter(
-        EvalSample.project_id == project_id,
-        EvalSample.id.in_(data.sample_ids),
-    ).all()
+    samples = (
+        db.query(EvalSample)
+        .filter(
+            EvalSample.project_id == project_id,
+            EvalSample.id.in_(data.sample_ids),
+        )
+        .all()
+    )
     if not samples:
         raise HTTPException(400, "请至少选择一个评测样本")
 
-    running = db.query(EvalRun).filter(
-        EvalRun.project_id == project_id,
-        EvalRun.status.in_(["pending", "running"]),
-    ).count()
+    running = (
+        db.query(EvalRun)
+        .filter(
+            EvalRun.project_id == project_id,
+            EvalRun.status.in_(["pending", "running"]),
+        )
+        .count()
+    )
     if running:
         raise HTTPException(400, "已有评测正在运行，请等待完成")
 
@@ -278,7 +310,9 @@ def get_eval_task(task_id: int, db: Session = Depends(get_db)):
     project_id = _eval_project(db).id
     task = (
         db.query(GenerationTask)
-        .options(joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report))
+        .options(
+            joinedload(GenerationTask.drafts), joinedload(GenerationTask.quality_report)
+        )
         .filter(
             GenerationTask.id == task_id,
             GenerationTask.project_id == project_id,
@@ -294,10 +328,14 @@ def get_eval_task(task_id: int, db: Session = Depends(get_db)):
 @router.delete("/runs/{run_id}", status_code=204)
 def delete_run(run_id: int, db: Session = Depends(get_db)):
     project_id = _eval_project(db).id
-    run = db.query(EvalRun).filter(
-        EvalRun.id == run_id,
-        EvalRun.project_id == project_id,
-    ).first()
+    run = (
+        db.query(EvalRun)
+        .filter(
+            EvalRun.id == run_id,
+            EvalRun.project_id == project_id,
+        )
+        .first()
+    )
     if not run:
         raise HTTPException(404, "评测运行不存在")
     if run.status == "running":

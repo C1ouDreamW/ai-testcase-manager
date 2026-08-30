@@ -15,10 +15,14 @@ __all__ = [
 
 
 def _build_context(model_config: RuntimeModelConfig, **kwargs) -> SkillContext:
-    return SkillContext(model_config=model_config, use_mock=model_config.use_mock_llm, **kwargs)
+    return SkillContext(
+        model_config=model_config, use_mock=model_config.use_mock_llm, **kwargs
+    )
 
 
-async def parse_requirements(raw_content: str, model_config: RuntimeModelConfig) -> list[dict]:
+async def parse_requirements(
+    raw_content: str, model_config: RuntimeModelConfig
+) -> list[dict]:
     registry = get_registry()
     result = await registry.run(
         "requirement_parser",
@@ -28,7 +32,9 @@ async def parse_requirements(raw_content: str, model_config: RuntimeModelConfig)
     return result.get("items", [])
 
 
-async def propose_test_scope(raw_content: str, model_config: RuntimeModelConfig) -> dict:
+async def propose_test_scope(
+    raw_content: str, model_config: RuntimeModelConfig
+) -> dict:
     registry = get_registry()
     result = await registry.run(
         "test_proposal",

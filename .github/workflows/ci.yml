@@ -38,6 +38,7 @@ jobs:
               - 'backend/**'
               - 'autotest/conftest.py'
               - 'autotest/api/**'
+              - 'autotest/requirements.txt'
               - 'autotest/pyproject.toml'
               - 'autotest/uv.lock'
               - '.github/workflows/ci.yml'
@@ -63,12 +64,36 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --locked
+        run: uv sync --locked --all-groups
 
       - name: Lint with ruff
         run: |
           uv run ruff check .
           uv run ruff format --check .
+
+  backend-tests:
+    name: Backend unit tests
+    needs: changes
+    if: ${{ github.event_name == 'workflow_dispatch' || needs.changes.outputs.backend == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked --all-groups
+
+      - name: Run unit tests
+        run: uv run python -m pytest tests -q
 
   frontend-build:
     needs: changes
@@ -97,7 +122,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv and Python
+      - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -107,21 +132,21 @@ jobs:
             autotest/uv.lock
 
       - name: Install backend dependencies
-        run: uv sync --project backend --locked
+        run: uv sync --project backend --locked --all-groups
 
       - name: Install test dependencies
         run: uv sync --project autotest --locked
 
       - name: Run API test suite
         working-directory: autotest
-        run: uv run pytest api --alluredir=reports/allure-results
+        run: uv run pytest api --html reports/api-report.html --self-contained-html
 
-      - name: Upload API test results
+      - name: Upload API test report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: api-allure-results
-          path: autotest/reports/allure-results
+          name: api-test-report
+          path: autotest/reports/api-report.html
           if-no-files-found: ignore
           retention-days: 7
 
@@ -133,7 +158,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install uv and Python
+      - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
@@ -149,7 +174,7 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install backend dependencies
-        run: uv sync --project backend --locked
+        run: uv sync --project backend --locked --all-groups
 
       - name: Install test dependencies
         run: uv sync --project autotest --locked
@@ -164,15 +189,17 @@ jobs:
 
       - name: Run UI test suite
         working-directory: autotest
-        run: uv run pytest ui --screenshot only-on-failure --output ui/artifacts --alluredir=reports/allure-results
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/autotest/.browsers
+        run: uv run pytest ui --screenshot only-on-failure --output ui/artifacts --html reports/ui-report.html --self-contained-html
 
-      - name: Upload UI test results
+      - name: Upload UI test report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: ui-test-results
+          name: ui-test-report
           path: |
-            autotest/reports/allure-results
+            autotest/reports/ui-report.html
             autotest/ui/artifacts
           if-no-files-found: ignore
           retention-days: 7

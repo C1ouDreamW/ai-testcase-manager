@@ -12,5 +12,7 @@ async def run(inputs: dict, context: SkillContext) -> dict:
         return {"items": MOCK_REQUIREMENT_ITEMS}
 
     system_prompt = load_prompt(SKILL_DIR, "prompt.md")
-    items = await parse_requirement_items(system_prompt, raw_content, context.model_config)
+    items = await parse_requirement_items(
+        system_prompt, raw_content, context.model_config
+    )
     return {"items": items}

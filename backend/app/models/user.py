@@ -10,7 +10,9 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    username: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, nullable=False
+    )
     password_hash: Mapped[str] = mapped_column(String(256), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

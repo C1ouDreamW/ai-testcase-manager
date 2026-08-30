@@ -34,13 +34,17 @@ def _normalize_judgement(raw: dict) -> dict:
 def _mock_judgements(cases: list) -> list[dict]:
     result = []
     for i in range(len(cases)):
-        result.append(_normalize_judgement({
-            "index": i,
-            "relevance": 5 - (i % 2),
-            "executability": 4,
-            "verifiability": 4 + (i % 2),
-            "hallucination": False,
-        }))
+        result.append(
+            _normalize_judgement(
+                {
+                    "index": i,
+                    "relevance": 5 - (i % 2),
+                    "executability": 4,
+                    "verifiability": 4 + (i % 2),
+                    "hallucination": False,
+                }
+            )
+        )
     return result
 
 
@@ -58,13 +62,18 @@ def _cases_to_prompt(feature_item: dict, cases: list[dict]) -> str:
                 steps = json.loads(steps)
             except json.JSONDecodeError:
                 steps = [steps]
-        lines.append(json.dumps({
-            "index": idx,
-            "title": case.get("title", ""),
-            "precondition": case.get("precondition", ""),
-            "steps": steps or [],
-            "expected_result": case.get("expected_result", ""),
-        }, ensure_ascii=False))
+        lines.append(
+            json.dumps(
+                {
+                    "index": idx,
+                    "title": case.get("title", ""),
+                    "precondition": case.get("precondition", ""),
+                    "steps": steps or [],
+                    "expected_result": case.get("expected_result", ""),
+                },
+                ensure_ascii=False,
+            )
+        )
     return "\n".join(lines)
 
 

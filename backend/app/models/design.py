@@ -10,7 +10,9 @@ class DesignAsset(Base):
     __tablename__ = "design_assets"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id"), nullable=False, index=True
+    )
     document_id: Mapped[int] = mapped_column(
         ForeignKey("requirement_documents.id"), nullable=False, index=True
     )
@@ -29,7 +31,9 @@ class DesignAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     project: Mapped["Project"] = relationship(back_populates="design_assets")
-    document: Mapped["RequirementDocument"] = relationship(back_populates="design_assets")
+    document: Mapped["RequirementDocument"] = relationship(
+        back_populates="design_assets"
+    )
     insights: Mapped[list["DesignInsight"]] = relationship(
         back_populates="asset",
         cascade="all, delete-orphan",
@@ -41,7 +45,9 @@ class DesignInsight(Base):
     __tablename__ = "design_insights"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    asset_id: Mapped[int] = mapped_column(ForeignKey("design_assets.id"), nullable=False, index=True)
+    asset_id: Mapped[int] = mapped_column(
+        ForeignKey("design_assets.id"), nullable=False, index=True
+    )
     page: Mapped[str] = mapped_column(String(200), default="")
     module: Mapped[str] = mapped_column(String(100), default="")
     feature: Mapped[str] = mapped_column(String(200), nullable=False)

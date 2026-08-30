@@ -72,7 +72,10 @@ async def invoke_structured(
     except Exception as exc:
         # Pydantic/JSON 错误保留原异常，交给 LangGraph 判断是否重试；
         # 网络、鉴权等模型异常继续转成项目原有的中文提示。
-        if exc.__class__.__module__.startswith(("pydantic", "json")) or "OutputParser" in exc.__class__.__name__:
+        if (
+            exc.__class__.__module__.startswith(("pydantic", "json"))
+            or "OutputParser" in exc.__class__.__name__
+        ):
             raise
         if isinstance(exc, LLMCallError):
             raise
@@ -124,21 +127,23 @@ async def parse_design_image(
     )
     messages = [
         SystemMessage(content=system_prompt),
-        HumanMessage(content=[
-            {
-                "type": "text",
-                "text": (
-                    "请分析这张产品设计稿，提取可测试的页面功能、交互、状态与校验规则。"
-                    "不要臆测图片中无法确认的后端规则。\n\n"
-                    "请严格遵循以下结构化输出规范，只输出 JSON：\n"
-                    f"{parser.get_format_instructions()}"
-                ),
-            },
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:{content_type};base64,{encoded}"},
-            },
-        ]),
+        HumanMessage(
+            content=[
+                {
+                    "type": "text",
+                    "text": (
+                        "请分析这张产品设计稿，提取可测试的页面功能、交互、状态与校验规则。"
+                        "不要臆测图片中无法确认的后端规则。\n\n"
+                        "请严格遵循以下结构化输出规范，只输出 JSON：\n"
+                        f"{parser.get_format_instructions()}"
+                    ),
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{content_type};base64,{encoded}"},
+                },
+            ]
+        ),
     ]
     try:
         response = await model.ainvoke(messages)
@@ -151,7 +156,10 @@ async def parse_design_image(
             "features": features,
         }
     except Exception as exc:
-        if exc.__class__.__module__.startswith(("pydantic", "json")) or "OutputParser" in exc.__class__.__name__:
+        if (
+            exc.__class__.__module__.startswith(("pydantic", "json"))
+            or "OutputParser" in exc.__class__.__name__
+        ):
             raise
         if isinstance(exc, LLMCallError):
             raise

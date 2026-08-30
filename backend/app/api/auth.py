@@ -73,7 +73,8 @@ def _issue_session(user: User) -> LoginResponse:
         user_id=user.id,
         username=user.username,
         is_admin=user.is_admin,
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=settings.auth_token_ttl_hours),
+        expires_at=datetime.now(timezone.utc)
+        + timedelta(hours=settings.auth_token_ttl_hours),
     )
     with _token_lock:
         _active_tokens[token] = session
@@ -140,8 +141,12 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
             _failed_logins.pop(client_key, None)
 
     username = normalize_username(payload.username)
-    user = db.query(User).filter(User.username == username, User.is_active == True).first()
-    password_ok = verify_password(payload.password, user.password_hash if user else _dummy_password_hash)
+    user = (
+        db.query(User).filter(User.username == username, User.is_active == True).first()
+    )
+    password_ok = verify_password(
+        payload.password, user.password_hash if user else _dummy_password_hash
+    )
     if not user or not password_ok:
         with _login_lock:
             attempts += 1

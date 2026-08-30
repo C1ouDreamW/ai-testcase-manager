@@ -28,11 +28,13 @@ class DesignValidationTests(unittest.TestCase):
                 _validate_figma_url(invalid)
 
     def test_design_parser_mock_is_stable(self):
-        result = asyncio.run(get_registry().run(
-            "design_parser",
-            {"image_data": b"image", "content_type": "image/png"},
-            SkillContext(model_config=RuntimeModelConfig(), use_mock=True),
-        ))
+        result = asyncio.run(
+            get_registry().run(
+                "design_parser",
+                {"image_data": b"image", "content_type": "image/png"},
+                SkillContext(model_config=RuntimeModelConfig(), use_mock=True),
+            )
+        )
         self.assertTrue(result["insights"])
         self.assertEqual(result["insights"][0]["feature"], "提交表单")
         self.assertEqual(result["source"], "mock")
@@ -43,7 +45,9 @@ class DesignValidationTests(unittest.TestCase):
             return {
                 "is_design": True,
                 "image_summary": "登录页",
-                "features": [{"feature": "登录按钮", "module": "账号", "priority": "P0"}],
+                "features": [
+                    {"feature": "登录按钮", "module": "账号", "priority": "P0"}
+                ],
             }
 
         from unittest.mock import patch
@@ -56,10 +60,12 @@ class DesignValidationTests(unittest.TestCase):
         # Skill handler 由 importlib 动态加载，需 patch 其自身 globals
         handler = get_registry()._handlers["design_parser"]
         with patch.dict(handler.__globals__, {"parse_design_image": fake_parse}):
-            result = asyncio.run(handler(
-                {"image_data": b"image", "content_type": "image/png"},
-                SkillContext(model_config=config, use_mock=False),
-            ))
+            result = asyncio.run(
+                handler(
+                    {"image_data": b"image", "content_type": "image/png"},
+                    SkillContext(model_config=config, use_mock=False),
+                )
+            )
         self.assertEqual(result["source"], "vision:Qwen/Qwen3-VL-Demo")
         self.assertTrue(result["is_design"])
         self.assertEqual(result["insights"][0]["feature"], "登录按钮")
@@ -81,10 +87,12 @@ class DesignValidationTests(unittest.TestCase):
         )
         handler = get_registry()._handlers["design_parser"]
         with patch.dict(handler.__globals__, {"parse_design_image": fake_parse}):
-            result = asyncio.run(handler(
-                {"image_data": b"image", "content_type": "image/png"},
-                SkillContext(model_config=config, use_mock=False),
-            ))
+            result = asyncio.run(
+                handler(
+                    {"image_data": b"image", "content_type": "image/png"},
+                    SkillContext(model_config=config, use_mock=False),
+                )
+            )
         self.assertFalse(result["is_design"])
         self.assertEqual(result["insights"], [])
         self.assertEqual(result["image_summary"], "一张冰川风景照")

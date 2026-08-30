@@ -3,7 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.api.deps import current_user_id
-from app.schemas import SettingsTestOut, SettingsTestRequest, SystemSettingsOut, SystemSettingsUpdate
+from app.schemas import (
+    SettingsTestOut,
+    SettingsTestRequest,
+    SystemSettingsOut,
+    SystemSettingsUpdate,
+)
 from app.services.llm import test_model_connection
 from app.services.settings_service import (
     get_or_create_config,
@@ -25,7 +30,9 @@ def get_settings(db: Session = Depends(get_db)):
 @router.patch("", response_model=SystemSettingsOut)
 def patch_settings(data: SystemSettingsUpdate, db: Session = Depends(get_db)):
     try:
-        row = update_config(db, current_user_id(db), data.model_dump(exclude_unset=True))
+        row = update_config(
+            db, current_user_id(db), data.model_dump(exclude_unset=True)
+        )
     except (ModelEndpointError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return serialize_settings(row)

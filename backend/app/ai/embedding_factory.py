@@ -18,7 +18,11 @@ MOCK_EMBEDDING_DIMENSIONS = 64
 
 
 def embedding_configured(config: RuntimeModelConfig) -> bool:
-    return bool(config.embedding_base_url and config.embedding_api_key and config.embedding_model)
+    return bool(
+        config.embedding_base_url
+        and config.embedding_api_key
+        and config.embedding_model
+    )
 
 
 def uses_mock_embeddings(config: RuntimeModelConfig) -> bool:
@@ -29,9 +33,9 @@ def uses_mock_embeddings(config: RuntimeModelConfig) -> bool:
 def normalize_embedding_error(exc: Exception) -> Exception:
     """把 OpenAI/httpx 调用错误转换为项目原有的可读中文错误。"""
     module = exc.__class__.__module__
-    if isinstance(exc, (httpx.HTTPStatusError, httpx.RequestError)) or module.startswith(
-        ("openai", "httpcore")
-    ):
+    if isinstance(
+        exc, (httpx.HTTPStatusError, httpx.RequestError)
+    ) or module.startswith(("openai", "httpcore")):
         # 延迟导入，避免 llm 的设置页 Embedding 连通性测试形成模块循环。
         from app.services.llm import _friendly_error
 
@@ -46,8 +50,11 @@ class DeterministicMockEmbeddings(Embeddings):
     def _embed(text: str) -> list[float]:
         vector = [0.0] * MOCK_EMBEDDING_DIMENSIONS
         for index in range(len(text) - 2):
-            trigram = text[index:index + 3]
-            bucket = int(hashlib.md5(trigram.encode()).hexdigest(), 16) % MOCK_EMBEDDING_DIMENSIONS
+            trigram = text[index : index + 3]
+            bucket = (
+                int(hashlib.md5(trigram.encode()).hexdigest(), 16)
+                % MOCK_EMBEDDING_DIMENSIONS
+            )
             vector[bucket] += 1.0
         norm = sum(value * value for value in vector) ** 0.5 or 1.0
         return [value / norm for value in vector]
@@ -83,7 +90,9 @@ def create_embedding_resources(config: RuntimeModelConfig) -> EmbeddingResources
     if uses_mock_embeddings(config):
         return EmbeddingResources(embeddings=DeterministicMockEmbeddings())
     if not embedding_configured(config):
-        raise RuntimeError("未配置 Embedding 模型，请先在设置中填写 Embedding API 地址、模型和 Key")
+        raise RuntimeError(
+            "未配置 Embedding 模型，请先在设置中填写 Embedding API 地址、模型和 Key"
+        )
 
     base_url = validate_model_base_url(config.embedding_base_url)
     http_client = httpx.Client(timeout=60.0, trust_env=False)

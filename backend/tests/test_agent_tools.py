@@ -36,25 +36,64 @@ class AgentToolsTests(unittest.TestCase):
         self.db.close()
 
     def _seed(self):
-        doc = RequirementDocument(id=1, project_id=PROJECT_ID, title="需求", status="confirmed")
+        doc = RequirementDocument(
+            id=1, project_id=PROJECT_ID, title="需求", status="confirmed"
+        )
         items = [
-            RequirementItem(id=1, document_id=1, module="支付", feature="退款", confirmed=True),
-            RequirementItem(id=2, document_id=1, module="支付", feature="对账", confirmed=True),
-            RequirementItem(id=3, document_id=1, module="账户", feature="草稿功能点", confirmed=False),
+            RequirementItem(
+                id=1, document_id=1, module="支付", feature="退款", confirmed=True
+            ),
+            RequirementItem(
+                id=2, document_id=1, module="支付", feature="对账", confirmed=True
+            ),
+            RequirementItem(
+                id=3,
+                document_id=1,
+                module="账户",
+                feature="草稿功能点",
+                confirmed=False,
+            ),
         ]
         cases = [
-            TestCase(id=1, project_id=PROJECT_ID, requirement_item_id=1, title="退款成功路径",
-                     priority="P0", case_type="functional", steps="1. 发起退款", expected_result="退款成功"),
-            TestCase(id=2, project_id=PROJECT_ID, requirement_item_id=1, title="退款金额超限",
-                     priority="P1", case_type="boundary", expected_result="提示金额超限"),
-            TestCase(id=3, project_id=OTHER_PROJECT_ID, title="其他项目的用例",
-                     priority="P0", expected_result="不应出现"),
+            TestCase(
+                id=1,
+                project_id=PROJECT_ID,
+                requirement_item_id=1,
+                title="退款成功路径",
+                priority="P0",
+                case_type="functional",
+                steps="1. 发起退款",
+                expected_result="退款成功",
+            ),
+            TestCase(
+                id=2,
+                project_id=PROJECT_ID,
+                requirement_item_id=1,
+                title="退款金额超限",
+                priority="P1",
+                case_type="boundary",
+                expected_result="提示金额超限",
+            ),
+            TestCase(
+                id=3,
+                project_id=OTHER_PROJECT_ID,
+                title="其他项目的用例",
+                priority="P0",
+                expected_result="不应出现",
+            ),
         ]
         task = TestTask(id=1, project_id=PROJECT_ID, name="预发验证")
         batch = TestBatch(id=1, task_id=1, name="预发测试")
         batch_cases = [
             TestBatchCase(id=1, batch_id=1, case_id=1, result="passed"),
-            TestBatchCase(id=2, batch_id=1, case_id=2, result="failed", note="金额校验缺失", defect_ref="BUG-1"),
+            TestBatchCase(
+                id=2,
+                batch_id=1,
+                case_id=2,
+                result="failed",
+                note="金额校验缺失",
+                defect_ref="BUG-1",
+            ),
         ]
         self.db.add_all([doc, *items, *cases, task, batch, *batch_cases])
         self.db.commit()
@@ -77,7 +116,11 @@ class AgentToolsTests(unittest.TestCase):
 
     def test_list_testcases_truncation_note(self):
         for i in range(MAX_LIST_ITEMS + 5):
-            self.db.add(TestCase(project_id=PROJECT_ID, title=f"批量用例{i}", expected_result="ok"))
+            self.db.add(
+                TestCase(
+                    project_id=PROJECT_ID, title=f"批量用例{i}", expected_result="ok"
+                )
+            )
         self.db.commit()
         data = json.loads(self.tools["list_testcases"].invoke({"limit": 999}))
         self.assertEqual(data["returned"], MAX_LIST_ITEMS)
@@ -106,7 +149,10 @@ class AgentToolsTests(unittest.TestCase):
         self.assertEqual(data["uncovered"], [{"module": "支付", "feature": "对账"}])
 
     def test_coverage_summary_without_confirmed_items(self):
-        tools = {t.name: t for t in build_agent_tools(self.db, OTHER_PROJECT_ID, RuntimeModelConfig())}
+        tools = {
+            t.name: t
+            for t in build_agent_tools(self.db, OTHER_PROJECT_ID, RuntimeModelConfig())
+        }
         data = json.loads(tools["get_coverage_summary"].invoke({}))
         self.assertIn("message", data)
 
@@ -122,7 +168,9 @@ class AgentToolsTests(unittest.TestCase):
         self.assertEqual(task["batches"][0]["name"], "预发测试")
 
     def test_task_stats_name_filter_no_match(self):
-        data = json.loads(self.tools["get_test_task_stats"].invoke({"task_name": "不存在"}))
+        data = json.loads(
+            self.tools["get_test_task_stats"].invoke({"task_name": "不存在"})
+        )
         self.assertIn("message", data)
 
     # ---- list_defects ----
@@ -136,11 +184,19 @@ class AgentToolsTests(unittest.TestCase):
         self.assertEqual(defect["task"], "预发验证")
 
     def test_list_defects_exclude_blocked(self):
-        self.db.add(TestCase(id=4, project_id=PROJECT_ID, title="阻塞用例", expected_result="ok"))
+        self.db.add(
+            TestCase(
+                id=4, project_id=PROJECT_ID, title="阻塞用例", expected_result="ok"
+            )
+        )
         self.db.add(TestBatchCase(id=3, batch_id=1, case_id=4, result="blocked"))
         self.db.commit()
-        with_blocked = json.loads(self.tools["list_defects"].invoke({"include_blocked": True}))
-        without = json.loads(self.tools["list_defects"].invoke({"include_blocked": False}))
+        with_blocked = json.loads(
+            self.tools["list_defects"].invoke({"include_blocked": True})
+        )
+        without = json.loads(
+            self.tools["list_defects"].invoke({"include_blocked": False})
+        )
         self.assertEqual(len(with_blocked["defects"]), 2)
         self.assertEqual(len(without["defects"]), 1)
 
@@ -150,12 +206,22 @@ class AgentToolsTests(unittest.TestCase):
         long_content = "规" * (SNIPPET_CHARS + 100)
         with patch(
             "app.agent.tools.knowledge_service.retrieve",
-            new=AsyncMock(return_value=[
-                {"content": long_content, "title": "退款规则", "heading": "支付 > 退款",
-                 "source_type": "doc", "score": 0.9, "match": "both"},
-            ]),
+            new=AsyncMock(
+                return_value=[
+                    {
+                        "content": long_content,
+                        "title": "退款规则",
+                        "heading": "支付 > 退款",
+                        "source_type": "doc",
+                        "score": 0.9,
+                        "match": "both",
+                    },
+                ]
+            ),
         ):
-            data = json.loads(asyncio.run(self.tools["search_knowledge"].ainvoke({"query": "退款"})))
+            data = json.loads(
+                asyncio.run(self.tools["search_knowledge"].ainvoke({"query": "退款"}))
+            )
         hit = data["hits"][0]
         self.assertEqual(hit["title"], "退款规则")
         self.assertEqual(hit["match"], "both")
@@ -163,8 +229,12 @@ class AgentToolsTests(unittest.TestCase):
         self.assertIn("已截断", hit["content"])
 
     def test_search_knowledge_no_hits(self):
-        with patch("app.agent.tools.knowledge_service.retrieve", new=AsyncMock(return_value=[])):
-            data = json.loads(asyncio.run(self.tools["search_knowledge"].ainvoke({"query": "x"})))
+        with patch(
+            "app.agent.tools.knowledge_service.retrieve", new=AsyncMock(return_value=[])
+        ):
+            data = json.loads(
+                asyncio.run(self.tools["search_knowledge"].ainvoke({"query": "x"}))
+            )
         self.assertEqual(data["hits"], [])
         self.assertIn("message", data)
 
@@ -173,7 +243,9 @@ class AgentToolsTests(unittest.TestCase):
             "app.agent.tools.knowledge_service.retrieve",
             new=AsyncMock(side_effect=RuntimeError("embedding down")),
         ):
-            data = json.loads(asyncio.run(self.tools["search_knowledge"].ainvoke({"query": "x"})))
+            data = json.loads(
+                asyncio.run(self.tools["search_knowledge"].ainvoke({"query": "x"}))
+            )
         self.assertIn("error", data)
 
     def test_design_tools_registered(self):
@@ -187,24 +259,31 @@ class AgentToolsTests(unittest.TestCase):
             self.assertIn(name, self.tools)
 
     def test_merge_requires_confirmed(self):
-        data = json.loads(self.tools["merge_design_insights"].invoke({
-            "document_id": 1,
-            "insight_ids": [1],
-            "confirmed": False,
-        }))
+        data = json.loads(
+            self.tools["merge_design_insights"].invoke(
+                {
+                    "document_id": 1,
+                    "insight_ids": [1],
+                    "confirmed": False,
+                }
+            )
+        )
         self.assertIn("error", data)
         self.assertIn("confirmed", data["error"])
 
     def test_list_design_assets_project_scoped(self):
         from app.models.design import DesignAsset
-        self.db.add(DesignAsset(
-            id=10,
-            project_id=PROJECT_ID,
-            document_id=1,
-            asset_type="image",
-            title="登录页",
-            status="uploaded",
-        ))
+
+        self.db.add(
+            DesignAsset(
+                id=10,
+                project_id=PROJECT_ID,
+                document_id=1,
+                asset_type="image",
+                title="登录页",
+                status="uploaded",
+            )
+        )
         self.db.commit()
         data = json.loads(self.tools["list_design_assets"].invoke({"document_id": 1}))
         self.assertEqual(len(data["assets"]), 1)

@@ -6,7 +6,10 @@ from app.ai.embedding_factory import (
     DeterministicMockEmbeddings,
     create_embedding_resources,
 )
-from app.ai.vector_store_factory import VECTOR_COLLECTION_VERSION, vector_collection_name
+from app.ai.vector_store_factory import (
+    VECTOR_COLLECTION_VERSION,
+    vector_collection_name,
+)
 from app.services.settings_service import RuntimeModelConfig
 
 
