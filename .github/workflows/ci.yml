@@ -185,6 +185,8 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: autotest
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/autotest/.browsers
         run: uv run playwright install --with-deps chromium
 
       - name: Run UI test suite
