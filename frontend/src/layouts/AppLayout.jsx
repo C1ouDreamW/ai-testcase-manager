@@ -149,7 +149,6 @@ function SidebarContent({
   return (
     <>
       <Link to="/" className="app-brand">
-        <div className="app-brand-icon" aria-hidden="true">AI</div>
         <span className="app-brand-title">AI用例管理平台</span>
       </Link>
 
@@ -336,7 +335,6 @@ export default function AppLayout() {
           <MenuOutlined />
         </button>
         <Link to="/" className="mobile-topbar-brand">
-          <span className="app-brand-icon" aria-hidden="true">AI</span>
           <span className="mobile-topbar-title">
             {projectId && project ? project.name : 'AI用例管理平台'}
           </span>

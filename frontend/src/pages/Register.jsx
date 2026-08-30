@@ -41,23 +41,11 @@ export default function Register() {
   };
 
   return (
-    <div className="login-page register-page">
-      <div className="login-backdrop" aria-hidden="true">
-        <div className="login-aurora">
-          <div className="login-blob login-blob-1" />
-          <div className="login-blob login-blob-2" />
-          <div className="login-blob login-blob-3" />
-        </div>
-        <div className="login-liquid-orb login-liquid-orb-left" />
-        <div className="login-liquid-orb login-liquid-orb-right" />
-      </div>
-      <div className="login-grain" />
-
+    <div className="login-page">
       <main className="login-card register-card" aria-label="注册 AI 用例管理平台账号">
-        <div className="login-brand register-brand">
-          <div className="login-brand-icon" aria-hidden="true">AI</div>
+        <div className="login-brand">
           <div className="login-brand-title">创建账号</div>
-          <div className="login-brand-sub">AI TESTCASE STUDIO</div>
+          <div className="login-brand-sub">注册后即可开始生成测试用例</div>
         </div>
 
         <Form layout="vertical" colon={false} onFinish={handleSubmit} requiredMark={false} className="login-form">
@@ -121,8 +109,6 @@ export default function Register() {
           <Link to="/login" state={location.state}>返回登录</Link>
         </div>
       </main>
-
-      <div className="login-footer">AI 驱动的测试用例生成与管理</div>
     </div>
   );
 }

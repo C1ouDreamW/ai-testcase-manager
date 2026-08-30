@@ -25,22 +25,10 @@ export default function Login() {
 
   return (
     <div className="login-page">
-      <div className="login-backdrop" aria-hidden="true">
-        <div className="login-aurora">
-          <div className="login-blob login-blob-1" />
-          <div className="login-blob login-blob-2" />
-          <div className="login-blob login-blob-3" />
-        </div>
-        <div className="login-liquid-orb login-liquid-orb-left" />
-        <div className="login-liquid-orb login-liquid-orb-right" />
-      </div>
-      <div className="login-grain" />
-
-      <main className="login-card login-card-signin" aria-label="登录 AI 用例管理平台">
+      <main className="login-card" aria-label="登录 AI 用例管理平台">
         <div className="login-brand">
-          <div className="login-brand-icon" aria-hidden="true">AI</div>
           <div className="login-brand-title">AI用例管理平台</div>
-          <div className="login-brand-sub">AI TESTCASE STUDIO</div>
+          <div className="login-brand-sub">登录账号，继续你的测试工作</div>
         </div>
 
         <Form layout="vertical" colon={false} onFinish={handleSubmit} requiredMark={false} className="login-form">
@@ -71,8 +59,6 @@ export default function Login() {
           <Link to="/register" state={location.state}>立即注册</Link>
         </div>
       </main>
-
-      <div className="login-footer">AI 驱动的测试用例生成与管理</div>
     </div>
   );
 }
