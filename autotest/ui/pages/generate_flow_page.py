@@ -17,12 +17,13 @@ class GenerateFlowPage(BasePage):
 
     # ---- 第 2 步：设计稿导入（可跳过）----
     def skip_design(self):
-        self.page.get_by_role("button", name="跳过设计稿").click()
+        # 首个用例可能遭遇 vite 冷启动编译，步骤切换留足超时
+        self.page.get_by_role("button", name="跳过设计稿").click(timeout=60000)
 
     # ---- 第 3 步：确认功能点 ----
     def expect_confirm_step(self):
         """确认步骤的操作栏按钮，避免误匹配步骤条上的同名文案。"""
-        expect(self.page.get_by_role("button", name="确认并继续")).to_be_visible(timeout=30000)
+        expect(self.page.get_by_role("button", name="确认并继续")).to_be_visible(timeout=60000)
 
     def feature_rows(self):
         return self.page.locator(".ant-table-tbody tr.ant-table-row")
@@ -34,11 +35,11 @@ class GenerateFlowPage(BasePage):
     def start_generation(self):
         self.page.get_by_role("button", name="确认并开始生成").click()
         dialog = self.page.get_by_role("dialog")
-        expect(dialog.get_by_text("确认生成配置")).to_be_visible()
+        expect(dialog.get_by_text("确认生成配置")).to_be_visible(timeout=30000)
         dialog.get_by_role("button", name="开始生成").click()
 
     # ---- 第 5 步：评审 ----
-    def wait_review_ready(self, timeout: int = 60000):
+    def wait_review_ready(self, timeout: int = 120000):
         """等生成任务完成且草稿行渲染出来（按钮常驻，不能作为完成信号）。"""
         expect(self.page.locator(".ant-table-tbody tr.ant-table-row").first).to_be_visible(timeout=timeout)
 
@@ -62,4 +63,4 @@ class GenerateFlowPage(BasePage):
 
     # ---- 第 6 步：完成 ----
     def expect_done_step(self):
-        expect(self.page.get_by_role("button", name="查看测试用例")).to_be_visible(timeout=15000)
+        expect(self.page.get_by_role("button", name="查看测试用例")).to_be_visible(timeout=60000)
