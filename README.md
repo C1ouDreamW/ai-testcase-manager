@@ -1,8 +1,30 @@
-# AI 用例生成与管理系统（AITC）
+<div align="center">
 
-[![CI](https://github.com/C1ouDreamW/ai-testcase-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/C1ouDreamW/ai-testcase-manager/actions/workflows/ci.yml)
+# AI 用例生成与管理系统
 
-基于 LLM 的测试用例生成与管理平台，覆盖「需求导入 → 功能点拆解 → RAG 增强生成 → 质检评审 → 用例管理 → 执行回归 → AI 评测」完整闭环。支持 OpenAI 兼容模型（DeepSeek、通义、OpenAI 等），内置 Mock 模式，无 API Key 也可完整体验。
+**基于 LLM 的测试用例生成与管理平台**
+
+导入 PRD 与设计稿，由 LangGraph 工作流生成可评审、可执行、可回归的测试用例。
+
+<a href="https://github.com/C1ouDreamW/ai-testcase-manager/actions/workflows/ci.yml">
+  <img src="https://img.shields.io/github/actions/workflow/status/C1ouDreamW/ai-testcase-manager/ci.yml?label=CI&style=flat-square&labelColor=24292F&logo=github&logoColor=white" alt="CI">
+</a>
+<br/>
+<img src="https://img.shields.io/static/v1?label=Python&message=3.12%2B&color=3776AB&labelColor=24292F&logo=python&logoColor=white&style=flat-square" alt="Python">
+<img src="https://img.shields.io/static/v1?label=FastAPI&message=%2B%20SQLAlchemy&color=05998B&labelColor=24292F&logo=fastapi&logoColor=white&style=flat-square" alt="FastAPI">
+<img src="https://img.shields.io/static/v1?label=React&message=19%20%C2%B7%20AntD%206&color=087EA4&labelColor=24292F&logo=react&logoColor=white&style=flat-square" alt="React">
+<br/>
+<img src="https://img.shields.io/static/v1?label=LangChain&message=%2B%20LangGraph&color=1C3C3C&labelColor=24292F&logo=langchain&logoColor=white&style=flat-square" alt="LangChain">
+<img src="https://img.shields.io/static/v1?label=RAG&message=Chroma%20%2B%20BM25&color=8B5CF6&labelColor=24292F&style=flat-square" alt="RAG">
+<img src="https://img.shields.io/static/v1?label=pytest&message=%2B%20Playwright&color=0A9EDC&labelColor=24292F&logo=pytest&logoColor=white&style=flat-square" alt="pytest">
+
+[快速开始](#快速开始) · [界面速览](#界面速览) · [功能一览](#功能一览) · [自动化测试](#自动化测试)
+
+---
+
+</div>
+
+面向功能测试团队的用例设计场景：导入 PRD / FeatureList / 设计稿，由 **LangGraph 工作流**按功能点生成用例，经**规则质检 → AI Judge → 人工评审**后入库，支持 **RAG 知识增强**、测试执行回归与离线 **AI 评测**。生成模型适配任意 OpenAI 兼容接口（DeepSeek、通义、OpenAI 等），内置 Mock 模式，无 API Key 也可完整体验。
 
 ![评审采纳](assets/03-评审采纳.png)
 
@@ -85,7 +107,7 @@ cd autotest
 ## 目录结构
 
 ```
-aitc/
+ai-testcase-manager/
 ├── backend/app/       # api / models / services / ai / agent / skills / workflows
 ├── frontend/src/      # pages / components / layouts / services
 ├── autotest/          # 接口自动化 + UI 自动化 + 报告
