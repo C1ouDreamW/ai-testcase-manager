@@ -95,7 +95,7 @@ cd frontend && npm install && npm run dev
 
 ## 自动化测试
 
-测试工程位于 [`autotest/`](autotest/README.md)，使用隔离的临时数据库与 Mock 模式运行，不污染开发数据；后端另有 37 条单元测试（`backend/tests`）。GitHub Actions 每次 push / PR 自动执行 ruff 检查、后端单元测试、前端构建与接口自动化回归。
+测试工程位于 [`autotest/`](autotest/README.md)，使用隔离的临时数据库与 Mock 模式运行，不污染开发数据；后端另有 63 条单元测试（`backend/tests`）。GitHub Actions 每次 push / PR 自动执行 ruff 检查、后端单元测试、前端构建与接口自动化回归。测试同时产出 pytest-html 自包含报告与 Allure 结果（`allure serve reports/allure-results` 查看仪表盘）。
 
 ```bash
 cd autotest

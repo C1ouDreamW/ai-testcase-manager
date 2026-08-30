@@ -13,16 +13,17 @@ fi
 
 mkdir -p reports
 COMMON=(--screenshot only-on-failure --output ui/artifacts)
+ALLURE=(--alluredir=reports/allure-results --clean-alluredir)
 
 case "$SUITE" in
   api)
-    uv run pytest api --html reports/api-report.html --self-contained-html ;;
+    uv run pytest api "${ALLURE[@]}" --html reports/api-report.html --self-contained-html ;;
   ui)
-    uv run pytest ui "${COMMON[@]}" --html reports/ui-report.html --self-contained-html ;;
+    uv run pytest ui "${COMMON[@]}" "${ALLURE[@]}" --html reports/ui-report.html --self-contained-html ;;
   smoke)
-    uv run pytest -m smoke "${COMMON[@]}" --html reports/smoke-report.html --self-contained-html ;;
+    uv run pytest -m smoke "${COMMON[@]}" "${ALLURE[@]}" --html reports/smoke-report.html --self-contained-html ;;
   all)
-    uv run pytest api ui "${COMMON[@]}" --html reports/full-report.html --self-contained-html ;;
+    uv run pytest api ui "${COMMON[@]}" "${ALLURE[@]}" --html reports/full-report.html --self-contained-html ;;
   *)
     echo "用法: $0 [api|ui|smoke|all]" && exit 1 ;;
 esac

@@ -139,14 +139,16 @@ jobs:
 
       - name: Run API test suite
         working-directory: autotest
-        run: uv run pytest api --html reports/api-report.html --self-contained-html
+        run: uv run pytest api --alluredir=reports/allure-results --clean-alluredir --html reports/api-report.html --self-contained-html
 
       - name: Upload API test report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: api-test-report
-          path: autotest/reports/api-report.html
+          path: |
+            autotest/reports/api-report.html
+            autotest/reports/allure-results
           if-no-files-found: ignore
           retention-days: 7
 
@@ -193,7 +195,7 @@ jobs:
         working-directory: autotest
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/autotest/.browsers
-        run: uv run pytest ui --screenshot only-on-failure --output ui/artifacts --html reports/ui-report.html --self-contained-html
+        run: uv run pytest ui --screenshot only-on-failure --output ui/artifacts --alluredir=reports/allure-results --clean-alluredir --html reports/ui-report.html --self-contained-html
 
       - name: Upload UI test report
         if: ${{ !cancelled() }}
@@ -202,6 +204,7 @@ jobs:
           name: ui-test-report
           path: |
             autotest/reports/ui-report.html
+            autotest/reports/allure-results
             autotest/ui/artifacts
           if-no-files-found: ignore
           retention-days: 7

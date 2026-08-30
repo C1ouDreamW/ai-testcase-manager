@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "AITC - 自动化测试工程"
 requires-python = ">=3.12"
 dependencies = [
+    "allure-pytest>=2.13.0",
     "pytest==8.3.4",
     "pytest-html==4.1.1",
     "requests==2.32.3",
