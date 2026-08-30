@@ -1,5 +1,5 @@
 name: case_writer
-version: "2.0.0"
+version: "2.1.0"
 title: 综合用例生成
 description: 根据功能点生成完整测试用例，并标记其中的冒烟用例
 category: core

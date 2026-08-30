@@ -1,0 +1,121 @@
+{
+  "run_id": 3,
+  "label": "baseline/deepseek-v2",
+  "status": "completed",
+  "created_at": "2026-08-30 19:50:53",
+  "config": {
+    "workflow_version": "langgraph-v1",
+    "strategy": "full",
+    "specialist_skills": [],
+    "use_knowledge": false,
+    "skill_versions": {
+      "api_test": "1.0.0",
+      "case_judge": "1.0.0",
+      "case_writer": "2.0.0",
+      "design_parser": "1.0.0",
+      "requirement_parser": "1.0.0",
+      "security": "1.0.0",
+      "test_proposal": "1.0.0"
+    },
+    "prompt_fingerprints": {
+      "api_test": "7e3a8bfc698f86a3",
+      "case_judge": "4544d572d85e61d0",
+      "case_writer": "35e8b49551c63250",
+      "design_parser": "17bd88a6c9182b43",
+      "requirement_parser": "0132c80a4c9de4b3",
+      "security": "17724d5e181611a6",
+      "test_proposal": "8770629d84b7600b"
+    },
+    "generation_parameters": {
+      "temperature": 0.3,
+      "structured_output": "pydantic_output_parser"
+    },
+    "retrieval": {
+      "mode": "vector_bm25_rrf_optional_rerank",
+      "embedding_adapter": "langchain_openai",
+      "vector_store": "langchain_chroma",
+      "collection_version": "lc_v1",
+      "top_k": 5,
+      "recall_top_k": 20,
+      "similarity_threshold": 0.35,
+      "rrf_k": 60
+    },
+    "models": {
+      "generation": {
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-v4-flash",
+        "mock_mode": false
+      },
+      "evaluation": {
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-v4-pro"
+      },
+      "embedding": {
+        "base_url": "",
+        "model": ""
+      },
+      "rerank": {
+        "base_url": "",
+        "model": ""
+      }
+    }
+  },
+  "summary_metrics": {
+    "sample_count": 2,
+    "success_rate": 100.0,
+    "total_cases": 171,
+    "usable_rate": 71.9,
+    "recall": 100.0,
+    "duplicate_rate": 0.6,
+    "hallucination_count": 6,
+    "avg_judge_score": 4.37,
+    "total_tokens": 234664,
+    "total_duration_sec": 1929.9
+  },
+  "samples": [
+    {
+      "sample_id": 3,
+      "task_id": 7,
+      "status": "completed",
+      "metrics": {
+        "task_id": 7,
+        "success": true,
+        "error": "",
+        "total_cases": 117,
+        "usable_cases": 81,
+        "usable_rate": 69.2,
+        "recall": 100.0,
+        "checkpoint_count": 15,
+        "uncovered_checkpoints": [],
+        "avg_judge_score": 4.29,
+        "hallucination_count": 5,
+        "duplicate_count": 1,
+        "duplicate_rate": 0.9,
+        "tokens": 162552,
+        "duration_sec": 1344.1
+      }
+    },
+    {
+      "sample_id": 4,
+      "task_id": 8,
+      "status": "completed",
+      "metrics": {
+        "task_id": 8,
+        "success": true,
+        "error": "",
+        "total_cases": 54,
+        "usable_cases": 42,
+        "usable_rate": 77.8,
+        "recall": 100.0,
+        "checkpoint_count": 16,
+        "uncovered_checkpoints": [],
+        "avg_judge_score": 4.44,
+        "hallucination_count": 1,
+        "duplicate_count": 0,
+        "duplicate_rate": 0.0,
+        "tokens": 72112,
+        "duration_sec": 585.8
+      }
+    }
+  ]
+}
