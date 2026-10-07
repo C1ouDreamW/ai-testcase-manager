@@ -38,3 +38,4 @@ autotest/test-results/
 .ruff_cache/
 .uv-cache/
 temp/
+.zcodeignore
